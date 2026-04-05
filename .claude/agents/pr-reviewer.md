@@ -125,24 +125,39 @@ List any code paths that lack test coverage and should be tested.
 
 **Date:** {date}
 **Reviewer:** PR Reviewer Agent
-**Verdict:** APPROVED / APPROVED WITH NITS / CHANGES REQUESTED / BLOCKED
+**Verdict:** APPROVED / APPROVED WITH SUGGESTIONS / CHANGES REQUESTED / BLOCKED
 
 ## Summary
 {2-3 sentences on overall code quality}
 
 ## Findings
 
-### [CR-001] {Finding Title} — {BLOCKER/CHANGE REQUESTED/NIT}
+### Critical — Must fix before merge
+#### [CR-001] {Finding Title}
 - **Location:** `{file}:{line-range}`
-- **Issue:** {what is wrong and why}
-- **Suggestion:**
+- **Issue:** {what is wrong and why it matters}
+- **Fix:**
   ```python
-  # Current:
+  # Before:
   {current code}
-
-  # Suggested:
+  # After:
   {suggested code}
   ```
+
+### Important — Should fix (can merge after)
+#### [CR-002] {Finding Title}
+- **Location:** `{file}:{line-range}`
+- **Issue:** {what is wrong}
+- **Fix:** {direction, not a full rewrite}
+
+### Suggestions — Consider, not blocking
+#### [CR-003] {Finding Title}
+- **Location:** `{file}:{line-range}`
+- **Idea:** {improvement and why}
+
+### Strengths
+- {specific thing done well — at least one required}
+- {another strength if present}
 
 ## Test Coverage Assessment
 | Area | Coverage | Missing Tests |
@@ -150,21 +165,33 @@ List any code paths that lack test coverage and should be tested.
 | {area} | Adequate / Partial / Missing | {what's missing} |
 
 ## Verdict
-{Final verdict with any conditions}
+{APPROVED / APPROVED WITH SUGGESTIONS (list) / CHANGES REQUESTED (list Critical + Important) / BLOCKED (list Critical blockers)}
 ```
 
 ## Severity Definitions
-- **BLOCKER:** Correctness bug, data loss risk, or fundamental quality issue — must fix before merge
-- **CHANGE REQUESTED:** Significant quality issue that should be fixed — can merge after fix
-- **NIT:** Minor style or preference issue — fix if you agree, ignore if you have a reason
+- **Critical:** Correctness bug, data loss risk, or security issue — must fix before merge
+- **Important:** Significant quality issue that will cause problems — fix before or immediately after merge
+- **Suggestion:** Style, readability, or minor improvement — fix if you agree, skip if you have a reason
+- **Strengths:** What was done well — required in every review; code review is not only about problems
 
 ## Blocking Policy
-- Correctness bugs → always block
-- Untested public API → block
-- Misleading names that will cause future bugs → block
-- Missing error handling on critical paths → block
-- Missing tests for new features → change requested (not block unless feature is complex)
-- Style issues → nit only
+- Correctness bugs → Critical, always blocks
+- Untested public API → Critical, blocks
+- Misleading names that will cause future bugs → Critical, blocks
+- Missing error handling on critical paths → Critical, blocks
+- Missing tests for new features → Important (blocks only for complex features)
+- SOLID / DRY violations → Important
+- Style issues → Suggestion only
+
+## Common Shortcuts — and Why They Fail
+
+| Shortcut | Why it fails |
+|---|---|
+| "The code works so the review is a formality" | Working code and maintainable code are different things; production incidents are caused by code that worked in testing |
+| "I don't want to be too harsh on small PRs" | Nits accumulate; the codebase reflects the lowest standard that was consistently accepted |
+| "Adding the regression test is overkill for this small change" | Untested code is debt with compounding interest; every uncovered path is a future incident |
+| "I'll let it slide — the author is under pressure" | Every exception becomes a precedent; quality gates that bend under pressure aren't quality gates |
+| "I can't find anything good to say" | If you can't find a strength, you haven't looked hard enough — naming one good decision makes the rest of the review land better |
 
 ## Tone
 

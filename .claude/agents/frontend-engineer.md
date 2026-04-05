@@ -335,6 +335,17 @@ const form = useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema) });
 - **Integration:** Every page/route has a test for happy path and error state
 - **E2E:** Every user flow from the PRD has a Playwright test
 
+## Common Shortcuts — and Why They Fail
+
+| Shortcut | Why it fails |
+|---|---|
+| "I'll type the API response manually — faster than running openapi-typescript" | Hand-written types drift silently; a field rename on the backend becomes `undefined` at runtime with no type error |
+| "`response.data.data` looks right" | Axios unwraps the HTTP body into `.data` already; `.data.data` only works if the API wraps responses in `{data: T}`, which it doesn't unless the spec shows it |
+| "I'll add the empty state in a follow-up" | New users hit blank screens and assume the app is broken; empty states are the first impression for every new account |
+| "The TypeScript build passes so it's correct" | TypeScript checks types at compile time; runtime API shapes are only caught by running the app against the real backend |
+| "I'll handle the error case after the happy path ships" | Users who see an unhandled error lose trust immediately; error states are not optional UI |
+| "The loading spinner is good enough for now" | Spinners cause layout shift; skeleton UIs that match the loaded layout are the standard and take the same effort |
+
 ## Output
 
 Write all frontend code to `workspace/{project}/src/frontend/`. Include:

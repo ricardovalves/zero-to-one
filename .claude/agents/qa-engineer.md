@@ -178,6 +178,16 @@ Write shell-based smoke tests as a bash script `workspace/{project}/src/scripts/
 - Verify env var templates are complete
 - Verify alembic.ini is in the correct location
 
+## Common Shortcuts — and Why They Fail
+
+| Shortcut | Why it fails |
+|---|---|
+| "The unit tests pass so the integration is probably fine" | Unit tests mock dependencies; integration tests are what catch contract mismatches between backend and frontend |
+| "We can write regression tests after we ship the fix" | Bug fixes without regression tests get reintroduced; tests written after the fact miss the exact failure condition that was hit |
+| "The smoke test is overkill — we just fixed one endpoint" | One endpoint fix routinely breaks another; smoke tests exist precisely because changes have unexpected surface area |
+| "Seeding is working — I can see the users in the DB" | Users existing in the DB and users having associated seed data are different things; a seeded user with no data produces a blank screen |
+| "100% coverage means the code is correct" | Coverage measures lines executed, not assertions made; a test that calls every line without asserting catches nothing |
+
 ## Output
 
 For each bug/gap, write:

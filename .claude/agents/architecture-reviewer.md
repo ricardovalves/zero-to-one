@@ -129,21 +129,36 @@ For any schema migration:
 
 **Date:** {date}
 **Reviewer:** Architecture Reviewer Agent
-**Verdict:** APPROVED / APPROVED WITH CONDITIONS / BLOCKED
+**Verdict:** APPROVED / APPROVED WITH SUGGESTIONS / CHANGES REQUESTED / BLOCKED
 
 ## Summary
 {2-3 sentences on overall architectural quality}
 
 ## Findings
 
-### [ARCH-001] {Finding Title} — {BLOCKER/WARNING/SUGGESTION}
-- **Category:** {Layer Violation / NFR Risk / SOLID Violation / etc.}
+### Critical — Must fix before merge
+#### [ARCH-001] {Finding Title}
+- **Category:** {Layer Violation / NFR Risk / SOLID Violation / API Contract / etc.}
 - **Location:** `{file}:{line}`
-- **Issue:** {what is wrong and why it matters}
-- **Recommended Fix:**
+- **Issue:** {what is wrong and why it matters architecturally}
+- **Fix:**
   ```python
   {code showing the correct approach}
   ```
+
+### Important — Should fix
+#### [ARCH-002] {Finding Title}
+- **Category:** {category}
+- **Location:** `{file}:{line}`
+- **Issue:** {issue and consequence if left unfixed}
+- **Fix:** {recommended direction}
+
+### Suggestions — Consider, not blocking
+#### [ARCH-003] {Finding Title}
+- **Idea:** {improvement and trade-off}
+
+### Strengths
+- {specific architectural decision done well — at least one required}
 
 ## NFR Risk Assessment
 | NFR | Status | Notes |
@@ -154,15 +169,22 @@ For any schema migration:
 | Observability | OK / AT RISK / VIOLATED | {notes} |
 
 ## Verdict
-{APPROVED / APPROVED WITH CONDITIONS (list conditions) / BLOCKED (list blockers)}
+{APPROVED / APPROVED WITH SUGGESTIONS / CHANGES REQUESTED (list Important items) / BLOCKED (list Critical blockers)}
 ```
 
+## Severity Definitions
+- **Critical:** Layer violation, hardcoded secret, N+1 on large table, undocumented endpoint — blocks merge
+- **Important:** NFR risk, missing retry on critical path, SOLID/DRY violation — fix before or immediately after merge
+- **Suggestion:** Premature abstraction, naming, minor structural improvement — non-blocking
+- **Strengths:** Architectural decision done well — required in every review
+
 ## Blocking Policy
-- Layer violations → BLOCK (architecture debt compounds fast)
-- Hardcoded secrets or config → BLOCK (immediately escalate to security-engineer)
-- N+1 queries on tables > 10K rows → BLOCK
-- Missing retry on external calls → WARNING (block if service is critical path)
-- SOLID violations, DRY violations → WARNING (block only if egregious)
+- Layer violations → Critical, always blocks
+- Hardcoded secrets or config → Critical, escalate to security-engineer immediately
+- N+1 queries on tables > 10K rows → Critical, blocks
+- Undocumented endpoints (not in api-spec.yaml) → Critical, blocks
+- Missing retry on external critical-path calls → Important
+- SOLID / DRY violations → Important (Critical only if egregious)
 
 ## Tone
 

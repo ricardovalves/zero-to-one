@@ -278,6 +278,17 @@ Add `slowapi` to `requirements.txt`.
 - SQL injection impossible by construction (ORM only, no raw SQL with user input)
 - Sensitive fields (password_hash, etc.) never appear in Pydantic response schemas
 
+## Common Shortcuts — and Why They Fail
+
+| Shortcut | Why it fails |
+|---|---|
+| "I'll add tests once the happy path is working" | Tests written post-hoc miss the edge cases discovered during writing; they deprioritize and rarely happen |
+| "It's a small fix — the service layer is overkill here" | Every layer violation makes the next one feel justified; the codebase becomes a router/repo mishmash within weeks |
+| "bcrypt is fast enough to call directly in async" | At cost 12, bcrypt takes ~300ms synchronously — every concurrent request stalls for that entire duration |
+| "I'll use `SET LOCAL` for RLS, it's simpler" | asyncpg doesn't support parameterized `SET LOCAL`; it raises a syntax error at runtime |
+| "I'll handle errors once we know the happy path works" | Error paths are where production systems fail; retrofitting error handling after the fact breaks tested happy paths |
+| "The types match so the contract is fine" | Types are compile-time; field names, envelope shapes, and list vs. singleton mismatches are runtime failures visible only in the browser |
+
 ## Output
 
 Write all backend code to `workspace/{project}/src/backend/`. Include:
