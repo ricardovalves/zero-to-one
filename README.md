@@ -32,6 +32,90 @@ AI-Startup is a multi-agent framework built on [Claude Code](https://claude.ai/c
 
 ---
 
+## Pipeline Flow
+
+Every idea moves through the same stages. Agents communicate exclusively through files — no direct calls between agents.
+
+```
+[Your Idea]
+     │
+     ▼
+┌─────────────────┐
+│ business-expert │  WebSearch + analysis
+└────────┬────────┘
+         │ business-analysis.md
+         ▼
+  ╔═════════════╗
+  ║  GATE 1     ║  Viability report — GO / CONDITIONAL GO / NO-GO
+  ║  (you)      ║  NO-GO stops here. GO waits for your approval.
+  ╚══════╤══════╝
+         │
+         ▼
+┌─────────────────┐
+│ product-manager │  Personas, user stories, RICE scoring
+└────────┬────────┘
+         │ prd.md
+         │
+   ┌─────┴──────┐   (parallel)
+   ▼            ▼
+┌──────────┐  ┌───────────────┐
+│ux-       │  │ cto-architect │
+│designer  │  │               │
+└────┬─────┘  └───────┬───────┘
+     │                │
+design-spec.md    technical-spec.md
+prototype/*.html  api-spec.yaml
+     │                │
+     └────────┬────────┘
+              │
+              ▼
+     ┌─────────────────┐
+     │ project-manager │  Roadmap, epics, Linear issues
+     └────────┬────────┘
+              │ roadmap.md
+              ▼
+  ╔═════════════════════╗
+  ║  GATE 2  (you)      ║  Full execution plan — sprints, tasks, agents
+  ╚══════════╤══════════╝
+             │
+   ┌─────────┼──────────┬────────────┬──────────┬──────────┐
+   ▼         ▼          ▼            ▼          ▼          ▼
+backend  frontend    infra         db-      stripe-    email-
+engineer  engineer   engineer    engineer   engineer   engineer
+   │         │          │            │          │          │
+   └─────────┴──────────┴────────────┴──────────┴──────────┘
+                         │
+                    workspace/{project}/src/
+                         │
+              ┌──────────┼───────────┐   (parallel, every PR)
+              ▼          ▼           ▼
+          security   architect    pr-
+          engineer   reviewer    reviewer
+```
+
+### How information flows between agents
+
+Every agent reads only from `workspace/{project}/` — it never calls another agent directly. Handoff notes act as compressed summaries so downstream agents don't re-read full documents.
+
+```
+Agent produces:
+  workspace/{project}/{output}.md        ← primary artifact
+  workspace/{project}/handoffs/{name}.md ← 10-bullet summary for downstream agents
+
+Next agent reads:
+  workspace/{project}/handoffs/*.md      ← first (compressed, fast)
+  workspace/{project}/{spec}.md          ← only if more detail needed
+```
+
+The two auto-generated `CLAUDE.md` files propagate decisions without repeating them:
+
+| File | Generated after | Contains |
+|---|---|---|
+| `workspace/{project}/CLAUDE.md` | Strategic phase | Product brief, personas, key entities, stack decisions |
+| `workspace/{project}/src/CLAUDE.md` | Build phase | Run commands, seed accounts, file layout, critical patterns |
+
+---
+
 ## How to Use
 
 ### Full Pipeline (idea → production)
