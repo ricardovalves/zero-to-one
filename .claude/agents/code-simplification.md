@@ -29,12 +29,7 @@ Read every file in scope. Map what it does. Do not simplify code you haven't ful
 
 ### Step 2 — Run the baseline
 
-```bash
-# Confirm tests pass before you touch anything:
-docker compose exec backend pytest tests/ -q
-# or
-docker compose exec frontend npm test -- --passWithNoTests
-```
+Run the project's full test suite before touching anything. The exact command is in `workspace/{project}/src/CLAUDE.md`.
 
 If tests fail before you start, stop. Fixing failing tests is debugging, not simplification.
 
@@ -52,41 +47,39 @@ Write a summary of every simplification applied, the file, and the before/after 
 
 The most impactful pattern. Deeply nested `if/else` trees are replaced by early returns that eliminate nesting.
 
-```python
-# Before — 4 levels of nesting:
-def process_payment(user, amount):
-    if user is not None:
-        if user.is_active:
+```
+// Before — 4 levels of nesting:
+function processPayment(user, amount):
+    if user != null:
+        if user.isActive:
             if amount > 0:
                 if user.balance >= amount:
                     user.balance -= amount
-                    return True
-    return False
+                    return true
+    return false
 
-# After — flat, readable:
-def process_payment(user, amount):
-    if user is None or not user.is_active:
-        return False
-    if amount <= 0 or user.balance < amount:
-        return False
+// After — flat, readable:
+function processPayment(user, amount):
+    if user == null or not user.isActive: return false
+    if amount <= 0 or user.balance < amount: return false
     user.balance -= amount
-    return True
+    return true
 ```
 
 ### 2. Extract functions for named concepts
 
 If a block of code has a comment explaining what it does, that comment is the function name.
 
-```python
-# Before:
-# Calculate the quarterly tax reserve
-weeks_left = max(1, days_until_due // 7)
-weekly_target = quarterly_payment // weeks_left
+```
+// Before:
+// Calculate the weekly savings target
+weeksLeft = max(1, daysUntilDue / 7)
+weeklyTarget = quarterlyPayment / weeksLeft
 
-# After:
-def weekly_save_target(quarterly_payment: int, days_until_due: int) -> int:
-    weeks_left = max(1, days_until_due // 7)
-    return quarterly_payment // weeks_left
+// After:
+function weeklySaveTarget(quarterlyPayment, daysUntilDue):
+    weeksLeft = max(1, daysUntilDue / 7)
+    return quarterlyPayment / weeksLeft
 ```
 
 **Threshold:** Extract when a block is > 5 lines and has a single, nameable purpose.
@@ -95,15 +88,14 @@ def weekly_save_target(quarterly_payment: int, days_until_due: int) -> int:
 
 Single-use intermediate variables that just rename a value add noise without clarity.
 
-```python
-# Before:
+```
+// Before:
 result = db.execute(query)
-rows = result.scalars()
-items = rows.all()
-return items
+rows = result.all()
+return rows
 
-# After:
-return db.execute(query).scalars().all()
+// After:
+return db.execute(query).all()
 ```
 
 Only flatten when each step is obvious. Do not collapse chains where each step has non-trivial logic.
@@ -116,28 +108,28 @@ Two blocks that do the same thing with different variables → one function with
 
 ### 5. Replace magic values with named constants
 
-```python
-# Before:
-if month_count >= 10:
-    raise HTTPException(status_code=402, ...)
+```
+// Before:
+if monthCount >= 10:
+    raise LimitExceededError(...)
 
-# After:
+// After:
 FREE_TIER_MONTHLY_LIMIT = 10
-if month_count >= FREE_TIER_MONTHLY_LIMIT:
-    raise HTTPException(status_code=402, ...)
+if monthCount >= FREE_TIER_MONTHLY_LIMIT:
+    raise LimitExceededError(...)
 ```
 
 ### 6. Simplify boolean expressions
 
-```python
-# Before:
-if is_active == True:
-if not x == None:
-return True if condition else False
+```
+// Before:
+if isActive == true:
+if not x == null:
+return true if condition else false
 
-# After:
-if is_active:
-if x is not None:
+// After:
+if isActive:
+if x != null:
 return condition
 ```
 

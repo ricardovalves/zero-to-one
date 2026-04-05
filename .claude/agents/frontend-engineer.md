@@ -340,7 +340,7 @@ const form = useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema) });
 | Shortcut | Why it fails |
 |---|---|
 | "I'll type the API response manually — faster than running openapi-typescript" | Hand-written types drift silently; a field rename on the backend becomes `undefined` at runtime with no type error |
-| "`response.data.data` looks right" | Axios unwraps the HTTP body into `.data` already; `.data.data` only works if the API wraps responses in `{data: T}`, which it doesn't unless the spec shows it |
+| "The nested access looks right — the API probably wraps the response" | HTTP client libraries often unwrap the HTTP body one level automatically; adding a second `.data` (or equivalent) only works if the API explicitly wraps responses in `{data: T}` — always check the actual response shape against the spec before assuming a wrapper exists |
 | "I'll add the empty state in a follow-up" | New users hit blank screens and assume the app is broken; empty states are the first impression for every new account |
 | "The TypeScript build passes so it's correct" | TypeScript checks types at compile time; runtime API shapes are only caught by running the app against the real backend |
 | "I'll handle the error case after the happy path ships" | Users who see an unhandled error lose trust immediately; error states are not optional UI |

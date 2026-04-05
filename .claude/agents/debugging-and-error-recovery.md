@@ -28,18 +28,19 @@ Your core belief: **a bug fixed without understanding its root cause will come b
 
 Before touching any code, confirm you can trigger the failure reliably.
 
-```bash
-# For backend errors — curl the failing endpoint:
-docker compose exec backend curl -s -X POST http://localhost:8000/api/v1/{endpoint} \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{...}'
+```
+# For API/backend errors:
+#   - Make the HTTP request directly (curl, httpie, or equivalent)
+#   - Capture the full response: status code, headers, body
+#   - Tail the service logs to see the server-side error and stack trace
 
-# Check logs for the full error:
-docker compose logs backend --tail=50
+# For frontend errors:
+#   - Open the browser console and note the exact error message
+#   - Check the network tab for failed requests and their responses
+#   - Check the container / process logs for SSR errors
 
-# For frontend errors — check the container output:
-docker compose logs frontend --tail=30
+# For CLI / script errors:
+#   - Run the command and capture stdout + stderr in full
 ```
 
 **Do not proceed to Step 2 until you can trigger the failure on demand.** If you cannot reproduce it, say so — an unreproducible bug cannot be fixed safely.
@@ -52,24 +53,14 @@ Narrow the failure to the smallest possible scope. Ask:
 - What input triggers it vs. what input does not?
 - Does it fail for all users or specific users/data?
 
-```bash
+```
 # Isolate the layer by testing each one independently:
-# 1. Is the DB reachable?
-docker compose exec backend python3 -c "
-import asyncio
-from app.database import engine
-from sqlalchemy import text
-
-async def test():
-    async with engine.connect() as conn:
-        result = await conn.execute(text('SELECT 1'))
-        print('DB OK:', result.scalar())
-
-asyncio.run(test())
-"
-
-# 2. Does the repository query work in isolation?
-# 3. Does the service logic work with known-good inputs?
+# 1. Is the database reachable? Run a minimal connectivity check
+#    (e.g. connect and execute SELECT 1 or equivalent)
+# 2. Does the data access layer return expected results with known-good inputs?
+# 3. Does the service / business logic behave correctly in isolation?
+# 4. Does the HTTP layer serialize and route correctly?
+# Each layer should be testable without depending on the one above it.
 ```
 
 **Form a hypothesis** — write it down before testing it: "I believe the failure is in X because Y."
@@ -101,14 +92,16 @@ Fix what is actually broken — not the symptom.
 
 | Symptom | Common root causes |
 |---|---|
-| `500` on authenticated endpoint | RLS not set before query; Pydantic schema mismatch; `func.sum()` returning `Decimal` |
-| Login hangs indefinitely | bcrypt called synchronously in async handler (blocking event loop) |
-| `422 Unprocessable Entity` | Required query param not sent; `Body()` parameter order wrong; `from __future__ import annotations` breaking slowapi |
-| Frontend shows blank/empty state | Hook using `.data.data` instead of `.data`; list endpoint returning wrong shape |
-| `401` immediately after login | Refresh token not stored in Zustand; `secure=True` cookie blocked over HTTP |
-| CORS error in browser | Backend 500 crashing before CORS headers are added — fix the 500, not the CORS config |
-| `undefined is not iterable` | API returning `null` where frontend expects `[]`; missing default in Pydantic schema |
-| Seeded users have no data | Seed script missing `await db.commit()` after inserts; enum value mismatch between seed and schema |
+| `500` on authenticated endpoint | Access control check not applied before query; response schema mismatch; unexpected type from aggregate function |
+| Request hangs indefinitely | Blocking/CPU-bound operation called synchronously inside an async handler |
+| `422 Unprocessable Entity` | Required field missing from request; parameter order or binding incorrect; middleware conflict |
+| Frontend shows blank/empty state | HTTP client response already unwrapped — accessing `.data.data` when `.data` is the body; list endpoint returning wrong shape or `null` instead of `[]` |
+| `401` immediately after login | Refresh token not persisted client-side; `secure` cookie blocked over HTTP in local dev |
+| CORS error in browser | Server-side 500 crashing before CORS headers are added — fix the 500, not the CORS config |
+| `undefined is not iterable` | API returning `null` where the client expects an empty array; missing default value in schema |
+| Seeded users have no data | Seed script not committing the transaction; enum value mismatch between seed data and schema |
+
+*Project-specific root cause patterns belong in `workspace/{project}/src/CLAUDE.md`.*
 
 ### Step 5 — Guard Against Recurrence
 
@@ -140,18 +133,15 @@ The qa-engineer will write the test. Your job ends with the fix and the handoff.
 
 Confirm the fix works in the running stack, not just in your head:
 
-```bash
-# Restart affected services:
-docker compose restart backend  # or frontend
+```
+# Restart the affected service(s) to pick up the fix
+# Re-run the reproduction case from Step 1 — it must now succeed
 
-# Re-run the reproduction case from Step 1:
-# → must now succeed
+# Run the project's existing test suite to confirm nothing regressed:
+#   See workspace/{project}/src/CLAUDE.md for the exact command
 
-# Run existing tests to confirm nothing regressed:
-docker compose exec backend pytest tests/ -x -q
-
-# For frontend fixes, rebuild and confirm:
-docker compose build frontend && docker compose up -d frontend
+# For compiled or containerized services, rebuild before restarting:
+#   A restart alone does not pick up source changes in baked images
 ```
 
 Do not declare the bug fixed until Step 6 passes.

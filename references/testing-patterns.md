@@ -3,188 +3,172 @@
 Shared reference for `backend-engineer`, `frontend-engineer`, and `qa-engineer`.
 Agents cite this file rather than embedding the same patterns repeatedly.
 
+The tools listed below reflect the framework defaults. Projects using a different stack
+should override them in `workspace/{project}/src/CLAUDE.md`.
+
 ---
 
 ## Test Pyramid
 
-| Layer | Tool (Backend) | Tool (Frontend) | When to use |
+| Layer | Purpose | Default tools | When to use |
 |---|---|---|---|
-| Unit | pytest | vitest | Pure functions, business logic, isolated components |
-| Integration | pytest + httpx | vitest + MSW | API routes, DB queries, hook behaviour with mocked network |
-| E2E / Smoke | pytest + httpx (live stack) | Playwright | Full user flows, auth, multi-step sequences |
-| Contract | curl + python3 assertions | — | Verify API response shapes match what hooks expect |
+| Unit | Pure functions, business logic, isolated components | Language-native test runner | Any logic with clear inputs and outputs |
+| Integration | API routes, DB queries, service-to-repository wiring | HTTP test client + real test DB | Verifying layers work together |
+| E2E / Smoke | Full user flows against the running stack | Browser automation or HTTP client | Auth flows, multi-step sequences, post-deploy verification |
+| Contract | API response shapes match what clients expect | curl + assertion script | Catch field-name drift between backend and frontend |
 
-**Rule:** Test at the lowest level that gives you confidence. Don't use E2E tests to cover things a unit test can prove.
+**Rule:** Test at the lowest level that gives you confidence. Don't use E2E tests to cover what a unit test can prove.
 
 ---
 
-## Backend: pytest Patterns
+## Universal Patterns (apply regardless of language or framework)
 
-### Arrange-Act-Assert structure
+### Arrange-Act-Assert
 
-```python
-async def test_create_expense_returns_201(client, auth_headers):
-    # Arrange
-    payload = {"amount_cents": 5000, "schedule_c_category": "supplies", "expense_date": "2026-04-01"}
+Every test follows this structure — no exceptions:
 
-    # Act
-    response = await client.post("/api/v1/expenses", json=payload, headers=auth_headers)
-
-    # Assert
-    assert response.status_code == 201
-    data = response.json()
-    assert data["amount_cents"] == 5000
-    assert data["schedule_c_category"] == "supplies"
-    assert "id" in data
 ```
+# Arrange — set up the state and inputs
+# Act     — call the thing under test
+# Assert  — verify the outcome precisely
+```
+
+A test with no Arrange is testing the wrong thing. A test with no Assert is not a test.
 
 ### Naming convention
 
 ```
-test_{resource}_{condition}_{expected_outcome}
+{resource}_{condition}_{expected_outcome}
 
-test_login_with_wrong_password_returns_401
-test_list_expenses_without_auth_returns_401
-test_create_expense_on_free_tier_over_limit_returns_402
-test_dashboard_for_new_user_returns_empty_waterfall
+login_with_wrong_password → returns 401
+list_items_without_auth   → returns 401
+create_item_on_free_tier_over_limit → returns 402
+dashboard_for_new_user    → returns empty collection, not error
 ```
 
-### Required test cases per endpoint
+Names are documentation. A failing test name should tell the reader what broke without reading the test body.
 
-Every endpoint needs at minimum:
-- ✅ Happy path (correct input → expected response)
-- ✅ Auth failure (no token → 401)
-- ✅ Validation failure (missing required field → 422)
-- ✅ Not found (wrong ID → 404)
-- ✅ Plan gate (free tier hitting paid feature → 402) — if applicable
+### Required cases per endpoint
+
+Every API endpoint needs at minimum:
+- ✅ Happy path — correct input produces expected response and status
+- ✅ Auth failure — missing or invalid token returns 401
+- ✅ Validation failure — missing required field returns the appropriate error status
+- ✅ Not found — wrong or foreign ID returns 404, not 500
+- ✅ Plan/role gate — lower-privilege caller hitting a restricted endpoint returns 402/403
 
 ### Regression test header
 
-```python
-"""
-Regression: {one-line bug description}
-Bug found: {date or sprint}
-Fixed by: {what the fix was — reference the commit or PR}
-"""
+Every regression test file must open with:
+
+```
+Regression: {one-line description of the bug}
+Bug found:  {date or sprint}
+Fixed by:   {what the fix was — reference the commit or PR}
 ```
 
-### Fixtures (standard set — always available in conftest.py)
-
-```python
-@pytest.fixture
-async def db():          # real test DB, rolls back after each test
-async def client():      # httpx AsyncClient against the test app
-async def free_user():   # seeded free-tier user
-async def solo_user():   # seeded solo-tier user
-async def auth_headers(free_user): # Bearer token for free_user
-```
-
-### Anti-patterns
-
-| Anti-pattern | Why it fails |
-|---|---|
-| `assert response.json() is not None` | Tests nothing; any response body passes |
-| Mocking the database | Misses SQL errors, RLS failures, constraint violations |
-| `time.sleep(1)` in tests | Flaky; use `asyncio.wait_for()` or event-driven assertions |
-| Testing a mock was called | Tests the implementation, not the behaviour; breaks on refactor |
-| Shared mutable state between tests | One test's side effect contaminates the next |
+This makes the purpose of the test self-evident and ensures future refactors don't silently delete the guard.
 
 ---
 
-## Frontend: vitest + React Testing Library Patterns
+## Backend Integration Test Patterns
 
-### Component test structure
+### Structure
 
-```typescript
-import { render, screen, fireEvent } from '@testing-library/react'
-import { describe, it, expect, vi } from 'vitest'
-
-describe('ExpenseForm', () => {
-  it('should call onSubmit with parsed cents when amount is entered', async () => {
-    // Arrange
-    const onSubmit = vi.fn()
-    render(<ExpenseForm onSubmit={onSubmit} />)
-
-    // Act
-    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '50.00' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
-    // Assert
-    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ amount_cents: 5000 }))
-  })
-
-  it('should show error message when amount is negative', async () => {
-    render(<ExpenseForm onSubmit={vi.fn()} />)
-    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '-10' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    expect(screen.getByText(/must be greater than zero/i)).toBeInTheDocument()
-  })
-})
 ```
+test_db      — real test database, transaction rolled back after each test
+test_client  — HTTP client pointing at the test app
+auth_headers — valid token for a test user
 
-### Hook test structure (with MSW)
-
-```typescript
-import { renderHook, waitFor } from '@testing-library/react'
-import { http, HttpResponse } from 'msw'
-import { setupServer } from 'msw/node'
-
-const server = setupServer(
-  http.get('/api/v1/expenses', () =>
-    HttpResponse.json({ data: [], total: 0, page: 1, per_page: 50 })
-  )
-)
-
-beforeAll(() => server.listen())
-afterEach(() => server.resetHandlers())
-afterAll(() => server.close())
-
-it('should return empty list on first load', async () => {
-  const { result } = renderHook(() => useExpenses())
-  await waitFor(() => expect(result.current.isLoading).toBe(false))
-  expect(result.current.expenses).toEqual([])
-})
+Test:
+  1. Seed minimal required data
+  2. Make the HTTP request via test_client
+  3. Assert status code
+  4. Assert specific fields in the response body (not "response is not null")
 ```
 
 ### Anti-patterns
 
 | Anti-pattern | Why it fails |
 |---|---|
-| Testing by class name or DOM structure | Breaks on every styling change |
-| `screen.getByTestId('submit-btn')` | `getByRole('button', {name: 'Save'})` is more resilient and tests accessibility too |
-| Snapshot tests for complex UI | Snapshots capture accidental changes as regressions; use specific assertions |
-| `await new Promise(r => setTimeout(r, 100))` | Use `waitFor()` instead |
-| Mocking `api.ts` entirely | Misses real request construction; use MSW to intercept at the network layer |
+| Asserting the response body is non-null | Any response passes — including error responses |
+| Mocking the database | Misses query errors, constraint violations, and auth policy failures |
+| Sleeping to wait for async operations | Flaky — use proper async awaiting or polling with a timeout |
+| Testing that a mock was called | Tests the implementation, not the behaviour; breaks on any refactor |
+| Shared mutable state between tests | One test's side effect silently contaminates the next |
+| Testing framework internals | If the framework guarantees it, don't test it |
+
+---
+
+## Frontend Component Test Patterns
+
+### Structure
+
+```
+1. Render the component with controlled props
+2. Simulate user interactions (click, type, submit)
+3. Assert what the user sees or what callbacks were called
+   — not what internal state changed
+   — not what CSS class was applied
+```
+
+Query elements by their accessible role or label, not by class name or test ID — this makes tests resilient to visual redesigns and also validates accessibility.
+
+### Anti-patterns
+
+| Anti-pattern | Why it fails |
+|---|---|
+| Querying by CSS class or DOM structure | Breaks on every styling change without a behaviour change |
+| Snapshot tests for complex, data-driven UI | Snapshots encode accidental output as expected; use specific assertions |
+| Arbitrary wait/sleep for async UI | Use the test library's `waitFor` equivalent instead |
+| Mocking the entire API client | Misses real request construction; intercept at the network layer instead |
+| Testing implementation details (state, refs) | Breaks on refactor even when behaviour is identical |
 
 ---
 
 ## Contract Tests (Backend ↔ Frontend)
 
-Run these against the live Docker stack after every build. They catch the field-name drift that unit tests cannot see.
+Run against the live stack after every build. Catch field-name drift that unit and integration tests cannot see because they each mock the other side.
 
 ```bash
-BASE="http://localhost:8000/api/v1"
+BASE="<api base url from src/CLAUDE.md>"
+
+# 1. Authenticate and capture a token
 TOKEN=$(curl -s -X POST "$BASE/auth/login" \
   -H 'Content-Type: application/json' \
   -d '{"email":"<seed email>","password":"<seed password>"}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 
-# Verify list response shape:
-curl -s "$BASE/expenses" -H "Authorization: Bearer $TOKEN" | python3 -c "
+# 2. Verify list response envelope shape
+curl -s "$BASE/<list endpoint>" -H "Authorization: Bearer $TOKEN" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
-assert 'data' in d and isinstance(d['data'], list), f'Missing data[]: {list(d.keys())}'
-assert 'total' in d, 'Missing total'
-assert 'page' in d, 'Missing page'
-assert 'per_page' in d, 'Missing per_page'
-print('PASS expenses list shape')
+required = ['data', 'total', 'page', 'per_page']
+missing = [f for f in required if f not in d]
+ok = not missing and isinstance(d.get('data'), list)
+print('PASS' if ok else 'FAIL — ' + str(missing))
 "
 
-# Verify singleton response (no wrapper):
-curl -s "$BASE/billing/subscription" -H "Authorization: Bearer $TOKEN" | python3 -c "
+# 3. Verify singleton response (object at top level, no wrapper)
+curl -s "$BASE/<singleton endpoint>" -H "Authorization: Bearer $TOKEN" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
-assert 'plan' in d, f'Missing plan field — got: {list(d.keys())}'
-print('PASS billing singleton shape')
+# Replace with the actual required fields for this endpoint
+required = ['id', 'status']
+missing = [f for f in required if f not in d]
+print('PASS' if not missing else 'FAIL — missing: ' + str(missing))
+"
+
+# 4. Verify auth response has tokens at top level (not wrapped in {data: ...})
+LOGIN=$(curl -s -X POST "$BASE/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"<seed email>","password":"<seed password>"}')
+python3 -c "
+import sys, json
+d = json.loads('$LOGIN')
+ok = 'access_token' in d and 'refresh_token' in d
+print('PASS auth shape' if ok else 'FAIL — tokens not at top level, got: ' + str(list(d.keys())))
 "
 ```
+
+Adapt the field names and endpoints to the project. The pattern — curl, parse JSON, assert field presence — is universal.
