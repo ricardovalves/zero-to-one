@@ -223,6 +223,123 @@ FastAPI 0.115 enforces that `status_code=204` endpoints return no body. Returnin
 - Integration tests use a real test database (not mocks) — spin up with pytest fixture
 - Tests are isolated: each test runs in a transaction that is rolled back after
 
+### Structured Logging (mandatory — every backend must have this)
+
+All logs must be structured JSON emitted to stdout. This is what makes failures diagnosable from `docker compose logs backend` without guessing.
+
+**`app/logging_config.py` — configure once, import everywhere:**
+```python
+import json
+import logging
+import sys
+import time
+from datetime import datetime, timezone
+
+
+class JSONFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        log: dict = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        if record.exc_info:
+            log["exception"] = self.formatException(record.exc_info)
+        # Include any extra fields passed via logger.info("msg", extra={...})
+        for key, val in record.__dict__.items():
+            if key not in {
+                "name", "msg", "args", "levelname", "levelno", "pathname",
+                "filename", "module", "exc_info", "exc_text", "stack_info",
+                "lineno", "funcName", "created", "msecs", "relativeCreated",
+                "thread", "threadName", "processName", "process", "message",
+                "taskName",
+            }:
+                log[key] = val
+        return json.dumps(log)
+
+
+def configure_logging(level: str = "INFO") -> None:
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(JSONFormatter())
+    root = logging.getLogger()
+    root.handlers = [handler]
+    root.setLevel(getattr(logging, level.upper(), logging.INFO))
+    # Suppress noisy third-party loggers
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+```
+
+**Call `configure_logging()` at startup in `main.py` before the app is created:**
+```python
+from app.logging_config import configure_logging
+configure_logging(level=settings.LOG_LEVEL)  # LOG_LEVEL in .env, default "INFO"
+```
+
+**Add `LOG_LEVEL=INFO` to `.env.example` and settings:**
+```python
+# config.py
+class Settings(BaseSettings):
+    LOG_LEVEL: str = "INFO"
+```
+
+**Request/response logging middleware — add to `main.py`:**
+```python
+import time
+import logging
+from starlette.middleware.base import BaseHTTPMiddleware
+
+logger = logging.getLogger("app.access")
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        start = time.monotonic()
+        response = await call_next(request)
+        duration_ms = round((time.monotonic() - start) * 1000, 1)
+        logger.info(
+            "request",
+            extra={
+                "method": request.method,
+                "path": request.url.path,
+                "status": response.status_code,
+                "duration_ms": duration_ms,
+            },
+        )
+        return response
+
+app.add_middleware(RequestLoggingMiddleware)
+```
+
+**Error logging in routers — 500s must include the full exception:**
+```python
+logger = logging.getLogger(__name__)
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error("unhandled_exception", exc_info=True, extra={"path": request.url.path})
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+```
+
+**Usage in service/repository layers — always include context:**
+```python
+logger = logging.getLogger(__name__)
+
+# Good — structured fields are searchable in log aggregators:
+logger.info("item_created", extra={"item_id": str(item.id), "user_id": str(user_id)})
+logger.warning("seed_skipped", extra={"reason": "user already exists", "email": email})
+logger.error("db_query_failed", exc_info=True, extra={"query": "list_items", "user_id": str(user_id)})
+
+# Bad — unstructured strings are hard to filter:
+logger.info(f"Created item {item.id} for user {user_id}")
+```
+
+**Verify logs are working** — after `docker compose up`, this must show JSON:
+```bash
+docker compose logs backend --tail=20
+# Expected output:
+# {"timestamp": "2025-...", "level": "INFO", "logger": "app.access", "message": "request", "method": "GET", "path": "/health", "status": 200, "duration_ms": 1.2}
+```
+
 ### Security by Default
 
 **HTTP Security Headers middleware (add to `main.py`):**

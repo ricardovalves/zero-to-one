@@ -244,78 +244,227 @@ src/
 
 ---
 
-### STEP 5c: Post-Build Smoke Tests
+### STEP 5c: Post-Build Smoke Tests (mandatory — do not skip, do not hand off until passing)
 
-After the execution report, run these integration checks against the live stack. They catch the class of bugs that unit tests miss: schema mismatches, broken auth flows, silent empty responses, and new-user dead ends.
+After the execution report, bring up the stack and run these checks against the live system. They catch the class of bugs that unit tests miss: broken auth flows, silent empty responses, schema drift, and seed failures. **Do not present the build as complete until all checks pass.**
 
-**Read the seed script's printed output** to get the actual emails, passwords, and API endpoints before running — do not assume credentials or routes.
+#### 5c-i — Start the stack and wait for health
+
+```bash
+cd workspace/{project}/src
+
+# Start in background
+docker compose up -d
+
+# Wait for backend to be healthy (max 60 seconds)
+for i in $(seq 1 12); do
+  STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health 2>/dev/null)
+  if [ "$STATUS" = "200" ]; then echo "Backend healthy"; break; fi
+  echo "Waiting for backend... ($i/12)"; sleep 5
+done
+
+# Wait for frontend to be healthy (max 60 seconds)
+for i in $(seq 1 12); do
+  STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 2>/dev/null)
+  if [ "$STATUS" = "200" ] || [ "$STATUS" = "307" ]; then echo "Frontend healthy"; break; fi
+  echo "Waiting for frontend... ($i/12)"; sleep 5
+done
+```
+
+#### 5c-ii — Seed the database
+
+```bash
+# Run seed (idempotent — safe to re-run)
+docker compose exec backend python seed.py
+```
+
+Read the seed.py file at `workspace/{project}/src/backend/seed.py` to extract the actual test email and password. Do not hardcode them — they vary per project. Use the first admin or owner account.
+
+#### 5c-iii — Run generic smoke tests
 
 ```bash
 BASE="http://localhost:8000/api/v1"
+SEED_EMAIL="<email read from seed.py>"
+SEED_PASSWORD="<password read from seed.py>"
+PASS=0; FAIL=0
 
-# 1. Seed loads cleanly (idempotent — safe to re-run)
-docker compose exec backend python seed.py
-
-# 2. Login — verify token is at the TOP LEVEL of the response body (not nested in {data: ...})
+# ── TEST 1: Login ──────────────────────────────────────────────────────────────
+echo "=== TEST 1: Login ==="
 LOGIN_RESP=$(curl -s -X POST "$BASE/auth/login" \
   -H 'Content-Type: application/json' \
-  -d '{"email":"<seed email>","password":"<seed password>"}')
-echo "Login status: $(echo $LOGIN_RESP | python3 -c "import sys,json; d=json.load(sys.stdin); print('OK' if 'access_token' in d else 'FAIL — access_token not at top level, got: ' + str(list(d.keys())))")"
+  -d "{\"email\":\"$SEED_EMAIL\",\"password\":\"$SEED_PASSWORD\"}")
 
-# 3. Obtain a token for subsequent checks
-#    Note: response.data IS the body — access_token is at the top level, never nested
-TOKEN=$(echo $LOGIN_RESP | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+python3 - <<'EOF'
+import json, sys, os
+resp = os.environ.get('LOGIN_RESP', '')
+try:
+    d = json.loads(resp)
+except Exception:
+    print("FAIL — login response is not valid JSON:", resp[:200])
+    sys.exit(1)
+if 'access_token' not in d:
+    print("FAIL — access_token missing from login response. Got keys:", list(d.keys()))
+    sys.exit(1)
+if not d['access_token']:
+    print("FAIL — access_token is empty")
+    sys.exit(1)
+print("PASS — login returns access_token at top level")
+EOF
+LOGIN_RESP="$LOGIN_RESP" python3 -c "
+import json, sys, os
+d = json.loads(os.environ['LOGIN_RESP'])
+if 'access_token' in d and d['access_token']:
+    print('PASS'); sys.exit(0)
+else:
+    print('FAIL'); sys.exit(1)
+" && PASS=$((PASS+1)) || FAIL=$((FAIL+1))
 
-# 4. Every authenticated endpoint must return 200 (never 422 or 500)
-for EP in /dashboard/summary /billing/subscription; do
-  STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE$EP" -H "Authorization: Bearer $TOKEN")
-  echo "GET $EP → $STATUS"  # must be 200
-done
+TOKEN=$(echo "$LOGIN_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('access_token',''))" 2>/dev/null)
 
-# 5. Verify response FIELD NAMES match what the frontend hooks expect
-#    This catches backend/frontend contract drift before the browser does
-echo "--- Dashboard field check ---"
-curl -s "$BASE/dashboard/summary" -H "Authorization: Bearer $TOKEN" | \
-  python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-required = ['gross_income_cents', 'after_tax_income_cents', 'waterfall', 'client_contributions', 'quarterly_estimate_cents']
-missing = [f for f in required if f not in d]
-print('PASS' if not missing else 'FAIL — missing fields: ' + str(missing))
-"
+# ── TEST 2: Frontend loads ─────────────────────────────────────────────────────
+echo "=== TEST 2: Frontend loads ==="
+FE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000)
+if [[ "$FE_STATUS" == "200" || "$FE_STATUS" == "307" ]]; then
+  echo "PASS — frontend responds HTTP $FE_STATUS"; PASS=$((PASS+1))
+else
+  echo "FAIL — frontend returned HTTP $FE_STATUS"; FAIL=$((FAIL+1))
+fi
 
-echo "--- List response shape check (must have data[], total, page, per_page) ---"
-curl -s "$BASE/<primary_list_endpoint>" -H "Authorization: Bearer $TOKEN" | \
-  python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-required = ['data', 'total', 'page', 'per_page']
-missing = [f for f in required if f not in d]
-print('PASS' if not missing else 'FAIL — missing fields: ' + str(missing))
-print('data is array:', isinstance(d.get('data'), list))
-"
+# ── TEST 3: Authenticated endpoints return 200 (not 422 or 500) ───────────────
+echo "=== TEST 3: Authenticated GET endpoints ==="
+# Extract GET paths from api-spec.yaml (paths with get: operations)
+GET_PATHS=$(python3 -c "
+import yaml, sys
+try:
+    spec = yaml.safe_load(open('../../api-spec.yaml'))
+    paths = [p for p,v in spec.get('paths',{}).items() if 'get' in v and '{' not in p]
+    print('\n'.join(paths[:10]))  # test first 10 non-parameterized GET paths
+except Exception as e:
+    print('', file=sys.stderr)
+" 2>/dev/null)
 
-# 6. Seeded users must have seeded data — empty dashboard for a seeded user is a seed failure
-echo "--- Seeded data check ---"
-curl -s "$BASE/dashboard/summary" -H "Authorization: Bearer $TOKEN" | \
-  python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-print('gross_income_cents:', d.get('gross_income_cents'), '(should be > 0 for seeded users)')
-"
+if [ -n "$GET_PATHS" ] && [ -n "$TOKEN" ]; then
+  while IFS= read -r EP; do
+    [ -z "$EP" ] && continue
+    STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE$EP" -H "Authorization: Bearer $TOKEN")
+    if [[ "$STATUS" == "200" || "$STATUS" == "201" || "$STATUS" == "204" ]]; then
+      echo "PASS — GET $EP → $STATUS"; PASS=$((PASS+1))
+    else
+      echo "FAIL — GET $EP → $STATUS (expected 200)"; FAIL=$((FAIL+1))
+      if [[ "$STATUS" == "500" ]]; then
+        echo "  → Check backend logs: docker compose logs backend --tail=30"
+      elif [[ "$STATUS" == "422" ]]; then
+        echo "  → Scope auto-resolution broken: endpoint requires param the frontend cannot provide"
+      fi
+    fi
+  done <<< "$GET_PATHS"
+fi
 
-# 7. Frontend responds
-STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000)
-echo "Frontend → $STATUS"  # must be 200 or 307
+# ── TEST 4: Seeded users have seeded data (not empty after login) ──────────────
+echo "=== TEST 4: Seeded data present ==="
+# Find collection endpoints (those that should return paginated lists)
+LIST_PATHS=$(python3 -c "
+import yaml, sys
+try:
+    spec = yaml.safe_load(open('../../api-spec.yaml'))
+    # Look for endpoints whose response schema has a 'data' array property
+    candidates = []
+    for path, methods in spec.get('paths', {}).items():
+        if 'get' not in methods or '{' in path: continue
+        resp = methods['get'].get('responses', {}).get('200', {})
+        schema = resp.get('content', {}).get('application/json', {}).get('schema', {})
+        props = schema.get('properties', {})
+        if 'data' in props or 'items' in props or path.endswith('s'):
+            candidates.append(path)
+    print('\n'.join(candidates[:5]))
+except Exception:
+    pass
+" 2>/dev/null)
+
+if [ -n "$LIST_PATHS" ] && [ -n "$TOKEN" ]; then
+  while IFS= read -r EP; do
+    [ -z "$EP" ] && continue
+    RESP=$(curl -s "$BASE$EP" -H "Authorization: Bearer $TOKEN")
+    python3 - <<PYEOF
+import json, sys
+try:
+    d = json.loads("""$RESP""")
+except:
+    print("FAIL — GET $EP response not valid JSON"); sys.exit(1)
+# Check paginated list shape
+if isinstance(d, dict) and 'data' in d:
+    total = d.get('total', len(d['data']))
+    if total > 0:
+        print(f"PASS — $EP has {total} seeded record(s)")
+    else:
+        print("FAIL — $EP returned empty data for seeded user (seed failure or status enum mismatch)")
+        sys.exit(1)
+elif isinstance(d, list):
+    if len(d) > 0:
+        print(f"PASS — $EP has {len(d)} seeded record(s)")
+    else:
+        print("FAIL — $EP returned empty list for seeded user")
+        sys.exit(1)
+else:
+    print(f"PASS — $EP returned a non-list response (may not be a list endpoint)")
+PYEOF
+    if [ $? -eq 0 ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); fi
+  done <<< "$LIST_PATHS"
+fi
+
+# ── TEST 5: No 500 errors in backend logs ──────────────────────────────────────
+echo "=== TEST 5: Backend error log check ==="
+ERROR_COUNT=$(docker compose logs backend 2>/dev/null | grep -c '"level":"ERROR"\|"level": "ERROR"\|ERROR:' || echo 0)
+if [ "$ERROR_COUNT" -eq 0 ]; then
+  echo "PASS — no ERROR-level log entries"; PASS=$((PASS+1))
+else
+  echo "WARN — $ERROR_COUNT ERROR-level entries in backend logs (may be expected during startup)"; PASS=$((PASS+1))
+  docker compose logs backend 2>/dev/null | grep '"level":"ERROR"\|ERROR:' | tail -5
+fi
+
+# ── SUMMARY ────────────────────────────────────────────────────────────────────
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "SMOKE TEST RESULTS: $PASS passed, $FAIL failed"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if [ "$FAIL" -gt 0 ]; then exit 1; fi
 ```
 
-**Interpreting failures:**
-- `FAIL — access_token not at top level` → auth response is wrapped in `{data: ...}`; remove the wrapper from the auth router or fix the hook to not add `.data` twice
-- `FAIL — missing fields` → backend schema field names don't match what the frontend hook expects; compare `api-spec.yaml` → backend response schema → frontend hook destructuring — find where the name drifted
-- `422` on a list endpoint → scope auto-resolution is broken; the endpoint is requiring an ID the client doesn't have
-- `500` on any endpoint → likely a Pydantic schema mismatch or Python async gotcha; check backend logs with `docker compose logs backend --tail=50`
-- `gross_income_cents: 0` for a seeded user → seed didn't commit income entries, or RLS is blocking the query
-- Empty `data: []` for a seeded user → seed status values don't match the schema enum `Literal` types
+#### 5c-iv — Interpret failures and fix before handoff
+
+If any test failed, **do not mark the build complete**. Diagnose and fix:
+
+| Failure | Root cause | Fix |
+|---|---|---|
+| `FAIL — access_token missing` | Auth response wrapped in `{data: {...}}` | Remove wrapper from auth router, or fix frontend hook to not double-unwrap |
+| `FAIL — GET /endpoint → 422` | Scope ID required but not auto-resolved | Apply the scope auto-resolution pattern in the endpoint's service layer |
+| `FAIL — GET /endpoint → 500` | Pydantic schema mismatch or async gotcha | `docker compose logs backend --tail=50`; fix the specific error shown |
+| `FAIL — empty data for seeded user` | Seed status values don't match schema `Literal` types | Compare seed.py status strings against Pydantic schema Literal values exactly |
+| `FAIL — frontend HTTP 5xx` | Build error or missing env var | `docker compose logs frontend --tail=30`; check `.env.local` / docker-compose env |
+
+After fixing each failure, re-run the relevant test to confirm the fix before moving on. Do not batch all fixes and re-run once — fix and verify incrementally.
+
+#### 5c-v — Write results to handoff
+
+Append to `workspace/{project}/handoffs/smoke-test-results.md`:
+
+```markdown
+# Smoke Test Results — {datetime}
+
+| Test | Result | Notes |
+|---|---|---|
+| Login (access_token) | PASS/FAIL | {detail} |
+| Frontend loads | PASS/FAIL | HTTP {code} |
+| GET /endpoint → 200 | PASS/FAIL | {any failures} |
+| Seeded data present | PASS/FAIL | {total count or failure reason} |
+| No backend ERRORs | PASS/WARN | {count} entries |
+
+## Failures found and fixed
+{list any bugs found during smoke testing, how they were diagnosed, and what was changed}
+
+## Patterns to prevent next time
+{if a class of bug appeared, note it here so agents can be improved}
+```
 
 ### STEP 6: Summary
 

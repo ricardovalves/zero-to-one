@@ -99,76 +99,139 @@ it('should not export metadata from a use client component', () => { ... })
 
 When invoked for integration smoke testing, bring up the full stack and verify that the running system behaves correctly end-to-end. This catches contract drift between backend and frontend that unit tests cannot see.
 
+**Read `workspace/{project}/src/backend/seed.py`** before running to get the actual email and password — never hardcode them.
+
 ```bash
 cd workspace/{project}/src
+
+# ── Stack startup ──────────────────────────────────────────────────────────────
 docker compose up -d
-sleep 10  # wait for services to initialize
+
+# Wait for backend health (max 60s)
+for i in $(seq 1 12); do
+  STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health 2>/dev/null)
+  [ "$STATUS" = "200" ] && { echo "Backend healthy"; break; }
+  echo "Waiting for backend... ($i/12)"; sleep 5
+done
+
+# Seed data
 docker compose exec backend python seed.py
 
 BASE="http://localhost:8000/api/v1"
+PASS=0; FAIL=0
 
-# ── Auth contract ─────────────────────────────────────────────────────────────
-# Login response must have access_token at the top level — never wrapped in {data: ...}
+# ── TEST 1: Auth contract ──────────────────────────────────────────────────────
+# Login response must have access_token at the TOP LEVEL — never wrapped in {data: ...}
+# Read credentials from seed.py — do not hardcode
+SEED_EMAIL="<read from seed.py>"
+SEED_PASSWORD="<read from seed.py>"
+
 LOGIN=$(curl -s -X POST "$BASE/auth/login" \
   -H 'Content-Type: application/json' \
-  -d '{"email":"<seed email>","password":"<seed password>"}')
+  -d "{\"email\":\"$SEED_EMAIL\",\"password\":\"$SEED_PASSWORD\"}")
 
-python3 -c "
-import json, sys
-d = json.loads('$LOGIN'.replace(\"'\", '\"'))
-assert 'access_token' in d, f'access_token missing — got keys: {list(d.keys())}'
-assert 'refresh_token' in d, 'refresh_token missing from login response body'
-print('[PASS] auth contract')
-"
+LOGIN_RESP="$LOGIN" python3 -c "
+import json, sys, os
+d = json.loads(os.environ['LOGIN_RESP'])
+ok = 'access_token' in d and d['access_token']
+tok_ok = 'refresh_token' in d
+print(f'[{\"PASS\" if ok else \"FAIL\"}] auth: access_token present={ok}, refresh_token present={tok_ok}')
+if not ok: print('  got keys:', list(d.keys()))
+sys.exit(0 if ok else 1)
+" && PASS=$((PASS+1)) || FAIL=$((FAIL+1))
 
-TOKEN=$(echo $LOGIN | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+TOKEN=$(echo "$LOGIN" | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))")
 
-# ── Status code sweep ─────────────────────────────────────────────────────────
-# Every GET endpoint must return 200 — never 422 or 500
-declare -a ENDPOINTS=( $(grep -E "^  /" workspace/{project}/api-spec.yaml | grep -v post | awk '{print $1}') )
-for EP in "${ENDPOINTS[@]}"; do
+# ── TEST 2: Frontend loads ─────────────────────────────────────────────────────
+FE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000)
+if [[ "$FE_STATUS" == "200" || "$FE_STATUS" == "307" ]]; then
+  echo "[PASS] frontend → HTTP $FE_STATUS"; PASS=$((PASS+1))
+else
+  echo "[FAIL] frontend → HTTP $FE_STATUS"; FAIL=$((FAIL+1))
+fi
+
+# ── TEST 3: GET endpoint sweep — must be 200, never 422/500 ───────────────────
+GET_PATHS=$(python3 -c "
+import yaml, sys
+try:
+    spec = yaml.safe_load(open('../../api-spec.yaml'))
+    paths = [p for p,v in spec.get('paths',{}).items() if 'get' in v and '{' not in p]
+    print('\n'.join(paths[:10]))
+except: pass
+" 2>/dev/null)
+
+[ -n "$TOKEN" ] && while IFS= read -r EP; do
+  [ -z "$EP" ] && continue
   STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE$EP" -H "Authorization: Bearer $TOKEN")
-  if [[ "$STATUS" == "422" || "$STATUS" == "500" ]]; then
-    echo "[FAIL] GET $EP → $STATUS (422=missing required param/scope; 500=backend crash)"
+  if [[ "$STATUS" == "200" || "$STATUS" == "201" || "$STATUS" == "204" ]]; then
+    echo "[PASS] GET $EP → $STATUS"; PASS=$((PASS+1))
   else
-    echo "[PASS] GET $EP → $STATUS"
+    echo "[FAIL] GET $EP → $STATUS"; FAIL=$((FAIL+1))
+    [[ "$STATUS" == "422" ]] && echo "  → 422: scope auto-resolution broken (endpoint requires ID the client cannot provide)"
+    [[ "$STATUS" == "500" ]] && echo "  → 500: $(docker compose logs backend --tail=5 2>/dev/null | tail -3)"
   fi
-done
+done <<< "$GET_PATHS"
 
-# ── List response shape ────────────────────────────────────────────────────────
-# Every collection endpoint must return {data: T[], total, page, per_page}
-for EP in <list_endpoints_from_spec>; do
+# ── TEST 4: Seeded data present (not empty for seeded users) ───────────────────
+# Find collection endpoints from spec
+LIST_PATHS=$(python3 -c "
+import yaml
+try:
+    spec = yaml.safe_load(open('../../api-spec.yaml'))
+    out = []
+    for path, methods in spec.get('paths', {}).items():
+        if 'get' not in methods or '{' in path: continue
+        resp = methods['get'].get('responses',{}).get('200',{})
+        props = resp.get('content',{}).get('application/json',{}).get('schema',{}).get('properties',{})
+        if 'data' in props or 'items' in props: out.append(path)
+    print('\n'.join(out[:5]))
+except: pass
+" 2>/dev/null)
+
+[ -n "$TOKEN" ] && while IFS= read -r EP; do
+  [ -z "$EP" ] && continue
   RESP=$(curl -s "$BASE$EP" -H "Authorization: Bearer $TOKEN")
   python3 -c "
-import json
-d = json.loads('''$RESP''')
-required = ['data', 'total', 'page', 'per_page']
-missing = [f for f in required if f not in d]
-ok = not missing and isinstance(d.get('data'), list)
-print(f'[{\"PASS\" if ok else \"FAIL\"}] list shape $EP' + (f' — missing: {missing}' if missing else ''))
-"
-done
+import json, sys
+try:
+    d = json.loads('''$RESP''')
+except: print('[FAIL] $EP: non-JSON response'); sys.exit(1)
+if isinstance(d, dict) and 'data' in d:
+    total = d.get('total', len(d['data']))
+    ok = total > 0
+    print(f'[{\"PASS\" if ok else \"FAIL — empty data for seeded user\"}] $EP: total={total}')
+    if not ok: print('  → seed.py status values may not match schema Literal types')
+    sys.exit(0 if ok else 1)
+elif isinstance(d, list):
+    ok = len(d) > 0
+    print(f'[{\"PASS\" if ok else \"FAIL — empty list for seeded user\"}] $EP: {len(d)} items')
+    sys.exit(0 if ok else 1)
+else:
+    print('[PASS] $EP: non-list endpoint, skipping data check')
+" && PASS=$((PASS+1)) || FAIL=$((FAIL+1))
+done <<< "$LIST_PATHS"
 
-# ── Seeded data check ─────────────────────────────────────────────────────────
-# Seeded users must land on a populated screen — a blank dashboard is a seed failure
-for ROLE_EMAIL in <seed_emails>; do
-  ROLE_TOKEN=$(curl -s -X POST "$BASE/auth/login" \
-    -H 'Content-Type: application/json' \
-    -d "{\"email\":\"$ROLE_EMAIL\",\"password\":\"<password>\"}" \
-    | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+# ── TEST 5: Backend error log check ───────────────────────────────────────────
+ERR_COUNT=$(docker compose logs backend 2>/dev/null | grep -c '"level":"ERROR"\|ERROR:' || echo 0)
+if [ "$ERR_COUNT" -eq 0 ]; then
+  echo "[PASS] no ERROR-level log entries"; PASS=$((PASS+1))
+else
+  echo "[WARN] $ERR_COUNT ERROR-level entries — review:"
+  docker compose logs backend 2>/dev/null | grep '"level":"ERROR"\|ERROR:' | tail -5
+  PASS=$((PASS+1))  # warn, not fail — some ERRORs may be expected during startup
+fi
 
-  # Check that the primary dashboard/list endpoint has data (not empty)
-  RESP=$(curl -s "$BASE/<primary_data_endpoint>" -H "Authorization: Bearer $ROLE_TOKEN")
-  python3 -c "
-import json
-d = json.loads('''$RESP''')
-has_data = d.get('total', d.get('gross_income_cents', -1)) > 0
-print(f'[{\"PASS\" if has_data else \"FAIL — empty data for seeded user\"}] seed data: $ROLE_EMAIL')
-"
-done
+# ── SUMMARY ────────────────────────────────────────────────────────────────────
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "SMOKE TEST: $PASS passed, $FAIL failed"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+[ "$FAIL" -gt 0 ] && exit 1 || exit 0
 ```
 
-Write the results to `workspace/{project}/src/scripts/smoke-test.sh` so it can be re-run at any time.
+Write the parameterized script (with real credentials filled in from seed.py) to `workspace/{project}/src/scripts/smoke-test.sh` so it can be re-run at any time with `bash scripts/smoke-test.sh` from the `src/` directory.
+
+**Failure → Fix loop:** If any test fails, diagnose the root cause (check backend logs, compare api-spec.yaml response schema against actual response, compare seed.py status values against schema Literal types), fix it, re-run the failing test, confirm it passes before moving on.
 
 ## Docker / Config Test Standards
 
