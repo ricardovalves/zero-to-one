@@ -1,8 +1,8 @@
-# AI-Startup
+# Zero-to-One
 
-**A full software organization, powered by AI agents.**
+**Turn any idea into a validated, working MVP.**
 
-AI-Startup is a multi-agent framework built on [Claude Code](https://claude.ai/code) that mimics a complete software company. Given any idea, it orchestrates expert agents across strategy, design, engineering, and quality to deliver a working product — end-to-end.
+Zero-to-One is a multi-agent framework built on [Claude Code](https://claude.ai/code) that simulates a complete startup. Give it an idea — it stress-tests it against the market, defines the product, designs and architects the system, then builds a working codebase. Two mandatory human gates prevent building the wrong thing: a viability check before any product work, and a full plan review before any code is written.
 
 ---
 
@@ -118,11 +118,10 @@ The two auto-generated `CLAUDE.md` files propagate decisions without repeating t
 
 ## How to Use
 
-### Full Pipeline (idea → production)
+### Full Pipeline (idea → working MVP)
 ```
 /startup "your idea here"   # idea → business analysis → PRD → design + arch → roadmap
 /build <project>            # foundation → features → billing → email
-/deploy <project>           # GitHub → Fly.io → domain → live URL
 ```
 
 ### Individual Phases
@@ -131,7 +130,6 @@ The two auto-generated `CLAUDE.md` files propagate decisions without repeating t
 /design <project>            # UX design spec + HTML prototype
 /architect <project>         # Technical architecture + API spec
 /build <project> [feature]   # Engineering pipeline
-/deploy <project>            # Production deployment (Fly.io)
 /sprint <project>            # Plan next Linear sprint
 ```
 
@@ -168,7 +166,6 @@ All artifacts are saved to `workspace/{project-name}/`:
 | `roadmap.md` | project-manager |
 | `src/` | engineering team |
 | `src/CLAUDE.md` | orchestrator (developer context) |
-| `deployment.md` | deploy command |
 | `execution-report.md` | orchestrator |
 
 ---
@@ -190,7 +187,7 @@ All artifacts are saved to `workspace/{project-name}/`:
 | Monitoring | Sentry free tier | Sentry / Grafana |
 | Project mgmt | Linear | Linear |
 
-**First-iteration rule:** Everything runs with `docker compose up` — zero external accounts, zero credit cards, zero cloud setup required. Mailpit catches all email locally. Stripe test mode charges nothing. Deploy to a real URL with `/deploy` when you're ready for customers.
+**First-iteration rule:** Everything runs with `docker compose up` — zero external accounts, zero credit cards, zero cloud setup required. Mailpit catches all email locally. Stripe test mode charges nothing.
 
 ---
 
@@ -210,7 +207,6 @@ Two mandatory approval gates prevent building the wrong thing:
 2. Optionally set environment variables for integrations:
    ```bash
    export LINEAR_API_KEY=your_linear_key      # for Linear issue creation
-   export GITHUB_TOKEN=your_github_token      # for GitHub repo creation in /deploy
    export ANTHROPIC_API_KEY=your_key          # if not already set by Claude Code
    ```
 3. Run `/startup "your idea"` to begin
@@ -224,7 +220,6 @@ No other setup required. The full stack runs locally via Docker.
 - [Claude Code](https://claude.ai/code) CLI
 - Docker + Docker Compose (for local development)
 - Python 3.11+ (for integration tools)
-- GitHub account (for `/deploy`)
 - Linear account (optional, for sprint management)
 
 ---
@@ -241,7 +236,6 @@ No other setup required. The full stack runs locally via Docker.
 | Project CLAUDE.md + src/CLAUDE.md auto-generation | ✓ |
 | Stripe billing agent (checkout, webhooks, plan gating) | ✓ |
 | Transactional email agent (Mailpit local, Resend prod) | ✓ |
-| `/deploy` command (Fly.io, secrets, smoke tests) | ✓ |
 | PostHog analytics in frontend skeleton | ✓ |
 | HTTP security headers + global rate limiting | ✓ |
 
@@ -255,5 +249,6 @@ No other setup required. The full stack runs locally via Docker.
 | Medium | Feature flags (Unleash) | Open-source; controlled rollout and experiments |
 | Medium | Feedback-to-sprint loop | `/sprint` reads `workspace/{project}/feedback.md` from users |
 | Low | Mobile app path | React Native or Expo agent for consumer products |
+| Medium | `/deploy` command | One-command deploy to Fly.io: secrets, migrations, smoke tests, live URL |
 | Low | Multi-region deployment | Fly.io multi-region; only when customer data requires it |
 | Low | SSO / SAML | For enterprise sales; Boxyhq (open-source) |

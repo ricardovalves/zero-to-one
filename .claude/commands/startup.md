@@ -1,4 +1,4 @@
-Run the full AI-Startup pipeline from idea to working prototype.
+Run the full Zero-to-One pipeline from idea to working prototype.
 
 Orchestrates all agents with maximum parallelism. Agents communicate only through the filesystem — never directly. Produces a full execution report at the end.
 

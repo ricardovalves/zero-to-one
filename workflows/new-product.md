@@ -1,6 +1,6 @@
 # Workflow: New Product Pipeline
 
-This document describes the end-to-end workflow for taking a new idea through the full AI-Startup pipeline. It is the reference implementation of the `/startup` skill.
+This document describes the end-to-end workflow for taking a new idea through the full Zero-to-One pipeline. It is the reference implementation of the `/startup` skill.
 
 ---
 

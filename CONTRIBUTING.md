@@ -1,4 +1,4 @@
-# Contributing to AI-Startup
+# Contributing to Zero-to-One
 
 Thank you for your interest in improving this framework. Contributions that make the agents smarter, more resilient, or more useful are always welcome.
 
@@ -27,8 +27,8 @@ We are **not** looking for:
 
 ```bash
 # 1. Fork and clone
-git clone https://github.com/your-fork/ai-startup.git
-cd ai-startup
+git clone https://github.com/your-fork/zero-to-one.git
+cd zero-to-one
 
 # 2. Create a branch
 git checkout -b feat/improve-backend-agent
