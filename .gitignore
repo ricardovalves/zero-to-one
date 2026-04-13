@@ -1,8 +1,8 @@
 # ── Framework: generated project workspaces (examples, prototypes, generated code)
 workspace/*/
 
-# ── GitHub Actions workflows (belong inside workspace/{project}/src/, not the framework)
-.github/
+# ── GitHub Actions workflows generated inside project workspaces (not the framework's own)
+workspace/*/.github/
 
 # ── Claude Code local settings (machine-specific, may contain API keys)
 .claude/settings.local.json

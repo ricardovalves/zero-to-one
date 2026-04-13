@@ -1,0 +1,47 @@
+name: Feature Request
+description: A new slash command, pipeline phase, or improvement to the orchestration flow.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for new slash commands, pipeline phases, or structural changes to how agents are orchestrated.
+        For new agents, use the **New Agent** template instead.
+        For improvements to existing agent prompts, use the **Bug Report** template.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What is currently missing or broken in the pipeline that this feature addresses?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you add or change? Be as specific as possible — which files, which agents, which commands.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other approaches did you think about, and why did you rule them out?
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - New slash command
+        - Change to existing command
+        - New pipeline phase
+        - Orchestration / parallelism improvement
+        - Quality gate improvement
+        - Other
+    validations:
+      required: true

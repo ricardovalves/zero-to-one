@@ -1,0 +1,70 @@
+name: Failure Mode Pattern
+description: A class of bug you hit during a real build that the agents don't currently prevent.
+title: "[Pattern]: "
+labels: ["pattern"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the highest-value contribution to the framework. A failure mode pattern is a recurring class of bug
+        that an agent should prevent but currently doesn't. Every entry here makes future builds more reliable.
+
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Which agent should prevent this?
+      options:
+        - backend-engineer
+        - frontend-engineer
+        - db-engineer
+        - infra-engineer
+        - cto-architect
+        - qa-engineer
+        - other (specify in description)
+    validations:
+      required: true
+
+  - type: input
+    id: name
+    attributes:
+      label: Pattern name
+      description: A short, descriptive name for this class of bug.
+      placeholder: e.g. "Scope ID required but not auto-resolved from auth token"
+    validations:
+      required: true
+
+  - type: textarea
+    id: symptom
+    attributes:
+      label: Symptom
+      description: What did you see? Error message, wrong HTTP status, blank screen, crash — be specific.
+    validations:
+      required: true
+
+  - type: textarea
+    id: root_cause
+    attributes:
+      label: Root cause
+      description: Why does it happen? What is the structural reason this keeps occurring?
+    validations:
+      required: true
+
+  - type: textarea
+    id: fix
+    attributes:
+      label: Fix
+      description: The correct pattern. Include a code example if it helps — but write the rule itself at the concept level, not tied to a specific stack.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: This pattern is generic — no project-specific names or values
+          required: true
+        - label: I checked that this pattern is not already covered in the relevant agent file
+          required: true
+        - label: I hit this in a real build, not a hypothetical scenario
+          required: true

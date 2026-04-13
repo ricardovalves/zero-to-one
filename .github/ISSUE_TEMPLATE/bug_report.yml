@@ -1,0 +1,66 @@
+name: Bug Report
+description: An agent produced wrong, incomplete, or low-quality output.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when an agent consistently produces bad output — not for one-off mistakes or typos.
+        The more specific your report, the faster it gets fixed.
+
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Which agent?
+      options:
+        - business-expert
+        - product-manager
+        - ux-designer
+        - cto-architect
+        - project-manager
+        - backend-engineer
+        - frontend-engineer
+        - infra-engineer
+        - db-engineer
+        - stripe-engineer
+        - email-engineer
+        - ai-engineer
+        - security-engineer
+        - architecture-reviewer
+        - pr-reviewer
+        - qa-engineer
+        - orchestrator (startup / build / ideate command)
+    validations:
+      required: true
+
+  - type: textarea
+    id: input
+    attributes:
+      label: Input given
+      description: The idea, project name, or task you provided.
+      placeholder: e.g. /startup "a subscription newsletter platform"
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual output
+      description: What the agent produced. Paste the relevant section.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected output
+      description: What it should have produced instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: section
+    attributes:
+      label: Relevant prompt section
+      description: Which section of the agent file do you think is responsible? (optional but helpful)

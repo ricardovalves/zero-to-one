@@ -1,0 +1,66 @@
+name: New Agent
+description: Propose a new agent to add to the framework.
+title: "[Agent]: "
+labels: ["new-agent"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A new agent must fill a genuine gap in the pipeline — not duplicate an existing agent's responsibilities.
+        Before opening this issue, check that no existing agent already covers this role.
+
+  - type: input
+    id: name
+    attributes:
+      label: Agent name
+      placeholder: e.g. mobile-engineer
+    validations:
+      required: true
+
+  - type: textarea
+    id: role
+    attributes:
+      label: What does this agent do?
+      description: One or two sentences — from the orchestrator's perspective ("Use when you need...").
+    validations:
+      required: true
+
+  - type: textarea
+    id: gap
+    attributes:
+      label: What gap does it fill?
+      description: Which part of the current pipeline is this agent missing from? What breaks or gets skipped today without it?
+    validations:
+      required: true
+
+  - type: textarea
+    id: inputs
+    attributes:
+      label: Inputs
+      description: Which files does it read from workspace/{project}/?
+    validations:
+      required: true
+
+  - type: textarea
+    id: outputs
+    attributes:
+      label: Outputs
+      description: Which files does it write to workspace/{project}/?
+    validations:
+      required: true
+
+  - type: textarea
+    id: invoke
+    attributes:
+      label: When is it invoked?
+      description: Where in the pipeline does it run — and in parallel with what?
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: validated
+    attributes:
+      label: Validation
+      options:
+        - label: I have tested this agent with a real pipeline run and can share the output
+          required: false
