@@ -444,6 +444,37 @@ If any test failed, **do not mark the build complete**. Diagnose and fix:
 
 After fixing each failure, re-run the relevant test to confirm the fix before moving on. Do not batch all fixes and re-run once — fix and verify incrementally.
 
+#### 5c-iv-b — Write systemic patterns back to agent files (mandatory when applicable)
+
+After fixing any smoke test failure, ask: "Is this a class of bug that will recur in future projects, or is it a one-off project-specific mistake?"
+
+- **One-off** (typo, wrong env var value, project-specific seed datum): no agent update needed.
+- **Systemic** (a structural failure mode that could affect any project built with these agents): update the relevant agent file immediately.
+
+**Which agent to update:**
+
+| Failure class | Agent file |
+|---|---|
+| Auth response contract broken (token location, envelope shape) | `backend-engineer.md` + `frontend-engineer.md` |
+| Scope/tenant ID required but not auto-resolved from auth token | `backend-engineer.md` |
+| Seed enum/status values don't match schema Literal types | `db-engineer.md` |
+| Status/state values with no corresponding UI representation | `frontend-engineer.md` |
+| API response unwrapping wrong (client double-unwraps) | `frontend-engineer.md` |
+| ORM relationship name mismatches schema field name | `backend-engineer.md` |
+| Docker service fails to start cleanly or service ordering wrong | `infra-engineer.md` |
+| Seeded users have no associated data (blank screen after login) | `db-engineer.md` |
+| Nested response objects flat-mapped to IDs (N+1 on client) | `backend-engineer.md` |
+| Async/sync mismatch blocks runtime (CPU-bound in async handler) | `backend-engineer.md` |
+
+**Update rules:**
+1. Open the agent file and find the existing section where this pattern logically belongs — never append to the bottom
+2. Write the rule at the concept level: describe the root cause, the symptom, and the fix
+3. Keep it generic (no project-specific names, entity types, or values)
+4. Keep it technology-agnostic where possible — if the concept applies across stacks, say so at the principle level; add a stack-specific code example only as illustration
+5. Check that the pattern isn't already covered before adding — update existing entries rather than duplicating
+
+This step closes the feedback loop. Every build makes the framework smarter for every future build.
+
 #### 5c-v — Write results to handoff
 
 Append to `workspace/{project}/handoffs/smoke-test-results.md`:
@@ -462,8 +493,8 @@ Append to `workspace/{project}/handoffs/smoke-test-results.md`:
 ## Failures found and fixed
 {list any bugs found during smoke testing, how they were diagnosed, and what was changed}
 
-## Patterns to prevent next time
-{if a class of bug appeared, note it here so agents can be improved}
+## Agent files updated
+{for each systemic pattern found: which agent file was updated, what section, and what rule was added — or "none" if all failures were one-off}
 ```
 
 ### STEP 6: Summary
