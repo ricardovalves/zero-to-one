@@ -204,12 +204,6 @@ Two mandatory approval gates prevent building the wrong thing:
 
 ---
 
-## Demo Project
-
-See [`workspace/taskflow/`](./workspace/taskflow/) for a complete example: a task management SaaS for async remote teams, run through the full pipeline.
-
----
-
 ## Setup
 
 1. Clone this repo and open in Claude Code
