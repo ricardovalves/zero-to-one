@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nashville Trip — FairSplit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50:  '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0',
+              400: '#34d399', 500: '#10b981', 600: '#059669',
+              700: '#047857', 800: '#065f46', 900: '#064e3b',
+            }
+          },
+          fontFamily: { sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    .fade-in { animation: fadeIn 0.2s ease forwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    /* Bottom nav safe area */
+    .bottom-nav { padding-bottom: env(safe-area-inset-bottom, 0px); }
+    /* Shimmer skeleton */
+    .shimmer {
+      background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+    }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    /* Dropdown */
+    .dropdown-menu { transition: opacity 0.15s ease, transform 0.15s ease; }
+    .dropdown-menu.hidden { opacity: 0; transform: translateY(-4px); pointer-events: none; }
+    /* Expense row hover */
+    .expense-row:hover { background-color: #f8fafc; }
+    /* Toast slide-in */
+    @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(-12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+    .toast-appear { animation: toastIn 0.2s cubic-bezier(0.16,1,0.3,1) forwards; }
+  </style>
+</head>
+<body class="h-full bg-slate-50 font-sans antialiased">
+
+  <!-- Page header -->
+  <header class="bg-white border-b border-slate-100 sticky top-0 z-40">
+    <div class="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <a href="./index.html" class="flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded-lg">
+          <div class="w-6 h-6 bg-brand-700 rounded-md flex items-center justify-center flex-shrink-0">
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path d="M7 1L9.5 5.5H13L10 8.5L11.5 13L7 10.5L2.5 13L4 8.5L1 5.5H4.5L7 1Z" fill="white"/>
+            </svg>
+          </div>
+        </a>
+        <h1 class="text-base font-semibold text-slate-800 truncate max-w-[180px]">Nashville Trip</h1>
+      </div>
+      <div class="flex items-center gap-2">
+        <!-- Invite button -->
+        <button
+          onclick="showInvite()"
+          class="inline-flex items-center gap-1.5 h-8 px-3 text-brand-700 text-xs font-semibold bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+          aria-label="Invite members to this group"
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M7 2.5v9M2.5 7h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          Invite
+        </button>
+        <!-- More options -->
+        <div class="relative">
+          <button
+            id="more-btn"
+            onclick="toggleDropdown('more-menu')"
+            class="inline-flex items-center justify-center w-8 h-8 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            aria-label="More options"
+            aria-haspopup="true"
+            aria-expanded="false"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <circle cx="8" cy="3.5" r="1.2" fill="currentColor"/>
+              <circle cx="8" cy="8" r="1.2" fill="currentColor"/>
+              <circle cx="8" cy="12.5" r="1.2" fill="currentColor"/>
+            </svg>
+          </button>
+          <div id="more-menu" class="hidden absolute right-0 top-10 w-44 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 z-50" role="menu">
+            <a href="./index.html" role="menuitem" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M11 12H3a1 1 0 01-1-1V3a1 1 0 011-1h4.5M9 1.5h3.5V5M7 7l5.5-5.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Share group link
+            </a>
+            <button role="menuitem" onclick="closeDropdown('more-menu'); showToast('Group archived'); " class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors text-left">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><rect x="1.5" y="4" width="11" height="8.5" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 4V2.5A1 1 0 012.5 1.5h9a1 1 0 011 1V4" stroke="currentColor" stroke-width="1.2"/><path d="M5 7.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+              Archive group
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main content — scrollable above bottom nav -->
+  <main class="max-w-2xl mx-auto px-4 pt-5 pb-24 fade-in" aria-label="Group dashboard">
+
+    <!-- Balance hero card -->
+    <section class="bg-white rounded-2xl shadow-md p-6 mb-5" aria-label="Your balance">
+      <p class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Your Balance</p>
+      <div class="flex items-end justify-between gap-4">
+        <div>
+          <p class="text-sm text-slate-500 mb-0.5 font-medium">You are owed</p>
+          <p class="text-4xl font-bold text-brand-700 tabular-nums tracking-tight">$127.50</p>
+        </div>
+        <a
+          href="./settle-up.html"
+          class="inline-flex items-center gap-2 h-10 px-5 bg-brand-700 text-white text-sm font-semibold rounded-xl hover:bg-brand-800 active:scale-[0.98] transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 whitespace-nowrap"
+          aria-label="View and settle up all debts"
+        >
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+            <path d="M3 7.5h9M9 4l3 3.5-3 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Settle Up
+        </a>
+      </div>
+    </section>
+
+    <!-- Member balances -->
+    <section class="mb-5" aria-label="Member balances">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold text-slate-700">Members</h2>
+        <button
+          onclick="showInvite()"
+          class="text-xs text-brand-700 font-semibold hover:text-brand-800 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500 rounded"
+          aria-label="Invite more members to this group"
+        >
+          + Invite
+        </button>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+
+        <!-- Member row: Maya (you) -->
+        <div class="flex items-center gap-3 px-4 py-3.5 border-b border-slate-100" role="row" aria-label="Maya (you) — gets back $127.50">
+          <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-sm flex items-center justify-center flex-shrink-0" aria-hidden="true">M</div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-slate-800 truncate">Maya <span class="text-xs font-normal text-slate-400">(you)</span></p>
+          </div>
+          <span class="text-sm font-semibold text-brand-700 tabular-nums" aria-label="Gets back $127.50">+$127.50</span>
+          <span class="bg-brand-100 text-brand-700 text-xs font-medium px-2 py-0.5 rounded-full" aria-label="Status: gets back money">gets back</span>
+        </div>
+
+        <!-- Member row: Jake -->
+        <div class="flex items-center gap-3 px-4 py-3.5 border-b border-slate-100" role="row" aria-label="Jake — owes $42.00">
+          <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-800 font-semibold text-sm flex items-center justify-center flex-shrink-0" aria-hidden="true">J</div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-slate-700 truncate">Jake</p>
+          </div>
+          <span class="text-sm font-semibold text-rose-600 tabular-nums" aria-label="Owes $42.00">−$42.00</span>
+          <span class="bg-rose-100 text-rose-600 text-xs font-medium px-2 py-0.5 rounded-full" aria-label="Status: owes money">owes</span>
+        </div>
+
+        <!-- Member row: Tom -->
+        <div class="flex items-center gap-3 px-4 py-3.5 border-b border-slate-100" role="row" aria-label="Tom — owes $58.00">
+          <div class="w-8 h-8 rounded-full bg-amber-100 text-amber-800 font-semibold text-sm flex items-center justify-center flex-shrink-0" aria-hidden="true">T</div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-slate-700 truncate">Tom</p>
+          </div>
+          <span class="text-sm font-semibold text-rose-600 tabular-nums" aria-label="Owes $58.00">−$58.00</span>
+          <span class="bg-rose-100 text-rose-600 text-xs font-medium px-2 py-0.5 rounded-full" aria-label="Status: owes money">owes</span>
+        </div>
+
+        <!-- Member row: Sarah -->
+        <div class="flex items-center gap-3 px-4 py-3.5 border-b border-slate-100" role="row" aria-label="Sarah — owes $27.50">
+          <div class="w-8 h-8 rounded-full bg-pink-100 text-pink-800 font-semibold text-sm flex items-center justify-center flex-shrink-0" aria-hidden="true">S</div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-slate-700 truncate">Sarah</p>
+          </div>
+          <span class="text-sm font-semibold text-rose-600 tabular-nums" aria-label="Owes $27.50">−$27.50</span>
+          <span class="bg-rose-100 text-rose-600 text-xs font-medium px-2 py-0.5 rounded-full" aria-label="Status: owes money">owes</span>
+        </div>
+
+        <!-- Member row: Alex -->
+        <div class="flex items-center gap-3 px-4 py-3.5" role="row" aria-label="Alex — settled">
+          <div class="w-8 h-8 rounded-full bg-violet-100 text-violet-800 font-semibold text-sm flex items-center justify-center flex-shrink-0" aria-hidden="true">A</div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-slate-700 truncate">Alex</p>
+          </div>
+          <span class="text-sm font-medium text-slate-400 tabular-nums" aria-label="Even — no balance">$0.00</span>
+          <span class="bg-slate-100 text-slate-500 text-xs font-medium px-2 py-0.5 rounded-full" aria-label="Status: settled">even</span>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Recent Expenses -->
+    <section aria-label="Recent expenses">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold text-slate-700">Recent Expenses</h2>
+        <button class="text-xs text-brand-700 font-semibold hover:text-brand-800 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500 rounded" onclick="showToast('All expenses coming soon!')">
+          View all
+        </button>
+      </div>
+
+      <div class="space-y-2">
+
+        <!-- Expense: Airbnb -->
+        <a href="./expense-detail.html" class="expense-row bg-white rounded-xl border border-slate-100 shadow-sm px-4 py-3.5 flex items-center gap-3 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" aria-label="Airbnb Nashville, May 12 — $240.00 split 5 ways, your share $48.00">
+          <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-sm flex items-center justify-center flex-shrink-0" aria-hidden="true">M</div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-slate-800 truncate">Airbnb — Nashville</p>
+            <p class="text-xs text-slate-400 mt-0.5">May 12 · Split 5 ways</p>
+          </div>
+          <div class="text-right">
+            <p class="text-sm font-semibold text-slate-800 tabular-nums">$240.00</p>
+            <p class="text-xs text-slate-400 tabular-nums">your share $48.00</p>
+          </div>
+        </a>
+
+        <!-- Expense: Dinner -->
+        <a href="./expense-detail.html" class="expense-row bg-white rounded-xl border border-slate-100 shadow-sm px-4 py-3.5 flex items-center gap-3 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" aria-label="The Local — Dinner, May 11 — $84.00 split 4 ways, your share $21.00">
+          <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-800 font-semibold text-sm flex items-center justify-center flex-shrink-0" aria-hidden="true">J</div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-slate-800 truncate">The Local — Dinner</p>
+            <p class="text-xs text-slate-400 mt-0.5">May 11 · Split 4 ways · Paid by Jake</p>
+          </div>
+          <div class="text-right">
+            <p class="text-sm font-semibold text-slate-800 tabular-nums">$84.00</p>
+            <p class="text-xs text-slate-400 tabular-nums">your share $21.00</p>
+          </div>
+        </a>
+
+        <!-- Expense: Gas -->
+        <a href="./expense-detail.html" class="expense-row bg-white rounded-xl border border-slate-100 shadow-sm px-4 py-3.5 flex items-center gap-3 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" aria-label="Gas — Road trip, May 10 — $62.50 split 5 ways, your share $12.50">
+          <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-sm flex items-center justify-center flex-shrink-0" aria-hidden="true">M</div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-slate-800 truncate">Gas — Road trip fill-up</p>
+            <p class="text-xs text-slate-400 mt-0.5">May 10 · Split 5 ways</p>
+          </div>
+          <div class="text-right">
+            <p class="text-sm font-semibold text-slate-800 tabular-nums">$62.50</p>
+            <p class="text-xs text-slate-400 tabular-nums">your share $12.50</p>
+          </div>
+        </a>
+
+        <!-- Expense: Honky Tonk -->
+        <a href="./expense-detail.html" class="expense-row bg-white rounded-xl border border-slate-100 shadow-sm px-4 py-3.5 flex items-center gap-3 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" aria-label="Honky Tonk bar tab, May 11 — $96.00 split 5 ways, your share $19.20">
+          <div class="w-8 h-8 rounded-full bg-amber-100 text-amber-800 font-semibold text-sm flex items-center justify-center flex-shrink-0" aria-hidden="true">T</div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-slate-800 truncate">Honky Tonk bar tab</p>
+            <p class="text-xs text-slate-400 mt-0.5">May 11 · Split 5 ways · Paid by Tom</p>
+          </div>
+          <div class="text-right">
+            <p class="text-sm font-semibold text-slate-800 tabular-nums">$96.00</p>
+            <p class="text-xs text-slate-400 tabular-nums">your share $19.20</p>
+          </div>
+        </a>
+
+        <!-- Expense: Groceries -->
+        <a href="./expense-detail.html" class="expense-row bg-white rounded-xl border border-slate-100 shadow-sm px-4 py-3.5 flex items-center gap-3 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" aria-label="Trader Joe's Groceries, May 10 — $47.80 split 5 ways, your share $9.56">
+          <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-sm flex items-center justify-center flex-shrink-0" aria-hidden="true">M</div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-slate-800 truncate">Trader Joe's — Groceries</p>
+            <p class="text-xs text-slate-400 mt-0.5">May 10 · Split 5 ways</p>
+          </div>
+          <div class="text-right">
+            <p class="text-sm font-semibold text-slate-800 tabular-nums">$47.80</p>
+            <p class="text-xs text-slate-400 tabular-nums">your share $9.56</p>
+          </div>
+        </a>
+
+        <!-- Expense: Breakfast -->
+        <a href="./expense-detail.html" class="expense-row bg-white rounded-xl border border-slate-100 shadow-sm px-4 py-3.5 flex items-center gap-3 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" aria-label="Biscuit Love Brunch, May 12 — $78.20 split 5 ways, your share $15.64">
+          <div class="w-8 h-8 rounded-full bg-pink-100 text-pink-800 font-semibold text-sm flex items-center justify-center flex-shrink-0" aria-hidden="true">S</div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-slate-800 truncate">Biscuit Love — Brunch</p>
+            <p class="text-xs text-slate-400 mt-0.5">May 12 · Split 5 ways · Paid by Sarah</p>
+          </div>
+          <div class="text-right">
+            <p class="text-sm font-semibold text-slate-800 tabular-nums">$78.20</p>
+            <p class="text-xs text-slate-400 tabular-nums">your share $15.64</p>
+          </div>
+        </a>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Bottom navigation -->
+  <nav class="bottom-nav fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40" aria-label="Main navigation">
+    <div class="max-w-2xl mx-auto h-16 flex items-center">
+
+      <!-- Home (active) -->
+      <a href="./dashboard.html" class="flex-1 flex flex-col items-center justify-center gap-0.5 h-full text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset" aria-current="page" aria-label="Dashboard — current page">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+          <path d="M3 9.5L11 3l8 6.5V19a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" stroke="currentColor" stroke-width="1.75" fill="#ecfdf5" stroke-linejoin="round"/>
+        </svg>
+        <span class="text-[10px] font-semibold">Home</span>
+      </a>
+
+      <!-- Add Expense (FAB-style) -->
+      <a href="./add-expense.html" class="flex-1 flex flex-col items-center justify-center gap-0.5 h-full text-slate-400 hover:text-slate-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset" aria-label="Add a new expense">
+        <div class="w-10 h-10 bg-brand-700 rounded-xl flex items-center justify-center shadow-md">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M10 4v12M4 10h12" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </a>
+
+      <!-- Settle Up -->
+      <a href="./settle-up.html" class="flex-1 flex flex-col items-center justify-center gap-0.5 h-full text-slate-400 hover:text-slate-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset" aria-label="Settle up — view payment plan">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+          <path d="M3 11h16M14 7l5 4-5 4" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="text-[10px] font-medium">Settle</span>
+      </a>
+
+      <!-- Group / Members -->
+      <a href="#" onclick="showToast('Group settings coming soon!'); return false;" class="flex-1 flex flex-col items-center justify-center gap-0.5 h-full text-slate-400 hover:text-slate-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset" aria-label="Group members and settings">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+          <circle cx="8.5" cy="7" r="3" stroke="currentColor" stroke-width="1.75"/>
+          <path d="M2 19c0-3.59 2.91-6.5 6.5-6.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+          <circle cx="16" cy="8.5" r="2.5" stroke="currentColor" stroke-width="1.75"/>
+          <path d="M13 19c0-2.76 1.79-5 4-5h.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+        </svg>
+        <span class="text-[10px] font-medium">Group</span>
+      </a>
+
+    </div>
+  </nav>
+
+  <!-- Invite modal -->
+  <div id="invite-modal" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="invite-title">
+    <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onclick="closeModal('invite-modal')"></div>
+    <div class="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-sm mx-auto p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 id="invite-title" class="text-base font-semibold text-slate-800">Invite Members</h2>
+        <button onclick="closeModal('invite-modal')" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" aria-label="Close invite modal">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <p class="text-sm text-slate-500 mb-4">Share this link with anyone you want to add to the group.</p>
+      <div class="flex items-center gap-2 mb-4">
+        <code class="flex-1 text-xs text-slate-600 font-mono bg-slate-50 px-3 py-2.5 rounded-lg border border-slate-200 truncate">fairsplit.app/join/abc-xyz-123</code>
+        <button onclick="copyInviteLink()" class="h-9 px-3 bg-brand-50 text-brand-700 text-xs font-semibold rounded-lg hover:bg-brand-100 transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" aria-label="Copy invite link">
+          <span id="modal-copy-label">Copy</span>
+        </button>
+      </div>
+      <button onclick="shareInvite()" class="w-full h-10 bg-brand-700 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2 hover:bg-brand-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 2L14 6M14 6L10 10M14 6H6C4.34 6 3 7.34 3 9v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Share Link
+      </button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 max-w-sm w-[calc(100%-2rem)]" role="status" aria-live="polite">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8l3 3 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span id="toast-msg"></span>
+  </div>
+
+  <script>
+    // Show welcome toast if coming from join
+    window.addEventListener('DOMContentLoaded', () => {
+      const justJoined = sessionStorage.getItem('justJoined');
+      const name = sessionStorage.getItem('yourName');
+      if (justJoined && name) {
+        setTimeout(() => showToast(`Welcome, ${name}! You've joined Nashville Trip.`), 300);
+        sessionStorage.removeItem('justJoined');
+      }
+    });
+
+    function toggleDropdown(id) {
+      const el = document.getElementById(id);
+      const btn = document.getElementById('more-btn');
+      const isHidden = el.classList.contains('hidden');
+      el.classList.toggle('hidden');
+      btn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+      if (isHidden) {
+        document.addEventListener('click', (e) => {
+          if (!btn.contains(e.target) && !el.contains(e.target)) closeDropdown(id);
+        }, { once: true });
+      }
+    }
+
+    function closeDropdown(id) {
+      document.getElementById(id).classList.add('hidden');
+      const btn = document.getElementById('more-btn');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+
+    function showInvite() {
+      closeDropdown('more-menu');
+      openModal('invite-modal');
+    }
+
+    function openModal(id) {
+      const modal = document.getElementById(id);
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      // Focus first focusable element
+      setTimeout(() => {
+        const firstFocusable = modal.querySelector('button, [href], input, [tabindex]:not([tabindex="-1"])');
+        if (firstFocusable) firstFocusable.focus();
+      }, 50);
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add('hidden');
+      document.getElementById(id).classList.remove('flex');
+    }
+
+    // Keyboard: Escape closes modals
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeModal('invite-modal');
+        closeDropdown('more-menu');
+      }
+    });
+
+    function copyInviteLink() {
+      const label = document.getElementById('modal-copy-label');
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText('https://fairsplit.app/join/abc-xyz-123');
+      }
+      label.textContent = 'Copied!';
+      setTimeout(() => { label.textContent = 'Copy'; }, 2000);
+    }
+
+    function shareInvite() {
+      if (navigator.share) {
+        navigator.share({ title: 'Join Nashville Trip on FairSplit', url: 'https://fairsplit.app/join/abc-xyz-123' });
+      } else {
+        copyInviteLink();
+        showToast('Link copied — paste it in your group chat!');
+        closeModal('invite-modal');
+      }
+    }
+
+    function showToast(msg, type = 'success') {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-msg').textContent = msg;
+      toast.classList.remove('hidden');
+      toast.classList.add('toast-appear');
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => {
+        toast.classList.add('hidden');
+        toast.classList.remove('toast-appear');
+      }, 3500);
+    }
+  </script>
+</body>
+</html>

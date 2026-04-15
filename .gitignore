@@ -2,6 +2,18 @@
 # ── GitHub Actions workflows generated inside project workspaces (not the framework's own)
 workspace/*/.github/
 
+# ── Node / Next.js (workspace projects) ──────────────────────────────────────
+node_modules/
+.next/
+.vercel/
+out/
+
+# ── Local environment files (secrets) ────────────────────────────────────────
+*.env.local
+*.env.development.local
+*.env.test.local
+*.env.production.local
+
 # ── Claude Code local settings (machine-specific, may contain API keys)
 .claude/settings.local.json
 

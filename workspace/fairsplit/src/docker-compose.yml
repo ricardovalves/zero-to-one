@@ -1,0 +1,148 @@
+name: fairsplit
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: fairsplit-db
+    environment:
+      POSTGRES_USER: fairsplit
+      POSTGRES_PASSWORD: fairsplit_dev
+      POSTGRES_DB: fairsplit
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - fairsplit-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fairsplit -d fairsplit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  migrate:
+    # Uses the same runner image as backend — all source files and deps are present.
+    # Overrides the default CMD to run migrations then exit (restart: "no").
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fairsplit-migrate
+    command: alembic upgrade head
+    environment:
+      DATABASE_URL: postgresql+asyncpg://fairsplit:fairsplit_dev@db:5432/fairsplit
+      SECRET_KEY: dev-secret-key-change-in-production-minimum-32-chars
+      ENVIRONMENT: development
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - fairsplit-network
+    # Exit after migrations complete — never restart. Docker Compose uses
+    # service_completed_successfully on this service to gate the backend start.
+    restart: "no"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fairsplit-backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://fairsplit:fairsplit_dev@db:5432/fairsplit
+      SECRET_KEY: dev-secret-key-change-in-production-minimum-32-chars
+      CORS_ORIGINS: "http://localhost:3000"
+      ENVIRONMENT: development
+      LOG_LEVEL: INFO
+      APP_BASE_URL: http://localhost:3000
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - fairsplit-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+        NEXT_PUBLIC_SHOW_DEV_PANEL: "true"
+    container_name: fairsplit-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_SHOW_DEV_PANEL: "true"
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - fairsplit-network
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: fairsplit-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--storage.tsdb.retention.time=7d"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    networks:
+      - fairsplit-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: fairsplit-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_HTTP_PORT: "3001"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./infra/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+    ports:
+      - "3001:3001"
+    depends_on:
+      - prometheus
+    networks:
+      - fairsplit-network
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: fairsplit-mailpit
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    networks:
+      - fairsplit-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  fairsplit-network:
+    driver: bridge

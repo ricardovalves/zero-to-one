@@ -1,0 +1,55 @@
+# ── Node / Next.js ───────────────────────────────────────────────────────────
+node_modules/
+.next/
+.vercel/
+out/
+*.tsbuildinfo
+
+# Next.js build output (standalone mode copies node_modules here too)
+frontend/.next/
+frontend/node_modules/
+frontend/out/
+frontend/.vercel/
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.egg-info/
+dist/
+build/
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+.env
+
+# ── Local environment overrides (never commit secrets) ────────────────────────
+*.env.local
+*.env.development.local
+*.env.test.local
+*.env.production.local
+.env.local
+.env.development
+.env.production
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+# docker-compose.override.yml is intentionally committed when it exists
+# but local volume data and generated certs are not
+infra/grafana/data/
+infra/prometheus/data/
+
+# ── OS / editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/

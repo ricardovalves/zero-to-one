@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Join Nashville Trip — FairSplit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50:  '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0',
+              400: '#34d399', 500: '#10b981', 600: '#059669',
+              700: '#047857', 800: '#065f46', 900: '#064e3b',
+            }
+          },
+          fontFamily: { sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+    input:focus { outline: none; }
+    .name-input:focus {
+      border-color: #047857;
+      box-shadow: 0 0 0 3px rgba(16,185,129,0.25);
+    }
+    .name-input.error {
+      border-color: #f43f5e;
+      box-shadow: 0 0 0 3px rgba(244,63,94,0.2);
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+    .shake { animation: shake 0.3s ease; }
+    .fade-in { animation: fadeIn 0.25s ease forwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body class="h-full bg-slate-50 font-sans antialiased">
+
+  <!-- Minimal header — no nav since joining via external link -->
+  <header class="bg-white border-b border-slate-100">
+    <div class="max-w-lg mx-auto px-4 h-14 flex items-center">
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 bg-brand-700 rounded-lg flex items-center justify-center">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M7 1L9.5 5.5H13L10 8.5L11.5 13L7 10.5L2.5 13L4 8.5L1 5.5H4.5L7 1Z" fill="white"/>
+          </svg>
+        </div>
+        <span class="text-slate-900 font-semibold text-base">FairSplit</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-lg mx-auto px-4 py-10 fade-in">
+
+    <!-- Group identity -->
+    <div class="text-center mb-8">
+      <p class="text-sm text-slate-400 mb-1 font-medium">You're invited to</p>
+      <h1 class="text-3xl font-bold text-slate-900 mb-5">Nashville Trip</h1>
+
+      <!-- Existing members avatars -->
+      <div class="flex items-center justify-center mb-3" aria-label="Current members">
+        <!-- Avatar: Maya -->
+        <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-sm flex items-center justify-center border-2 border-white -ml-0 z-40 shadow-sm" title="Maya" aria-label="Maya">M</div>
+        <!-- Avatar: Jake -->
+        <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-800 font-semibold text-sm flex items-center justify-center border-2 border-white -ml-2 z-30 shadow-sm" title="Jake" aria-label="Jake">J</div>
+        <!-- Avatar: Tom -->
+        <div class="w-10 h-10 rounded-full bg-amber-100 text-amber-800 font-semibold text-sm flex items-center justify-center border-2 border-white -ml-2 z-20 shadow-sm" title="Tom" aria-label="Tom">T</div>
+        <!-- Avatar: Sarah -->
+        <div class="w-10 h-10 rounded-full bg-pink-100 text-pink-800 font-semibold text-sm flex items-center justify-center border-2 border-white -ml-2 z-10 shadow-sm" title="Sarah" aria-label="Sarah">S</div>
+        <!-- +1 more -->
+        <div class="w-10 h-10 rounded-full bg-slate-100 text-slate-500 font-semibold text-xs flex items-center justify-center border-2 border-white -ml-2 z-0 shadow-sm" aria-label="1 more member">+1</div>
+      </div>
+
+      <p class="text-sm text-slate-500">
+        <span class="font-medium text-slate-700">Maya, Jake, Tom, Sarah</span> and 1 other are in this group
+      </p>
+    </div>
+
+    <!-- Group info card -->
+    <div class="bg-white border border-slate-100 rounded-2xl p-5 mb-6 shadow-sm">
+      <div class="flex items-center gap-3 mb-3 pb-3 border-b border-slate-100">
+        <div class="w-8 h-8 bg-brand-50 rounded-lg flex items-center justify-center flex-shrink-0">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M2 11.5V5.5C2 4.4 2.9 3.5 4 3.5H12C13.1 3.5 14 4.4 14 5.5V9.5C14 10.6 13.1 11.5 12 11.5H5L2 14V11.5Z" stroke="#047857" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div>
+          <p class="text-xs text-slate-400 font-medium">Group</p>
+          <p class="text-sm font-semibold text-slate-800">Nashville Trip</p>
+        </div>
+      </div>
+      <div class="flex items-center justify-between text-sm">
+        <span class="text-slate-500">Members</span>
+        <span class="font-semibold text-slate-700">5 people</span>
+      </div>
+      <div class="flex items-center justify-between text-sm mt-1.5">
+        <span class="text-slate-500">Expenses logged</span>
+        <span class="font-semibold text-slate-700">6 expenses</span>
+      </div>
+      <div class="flex items-center justify-between text-sm mt-1.5">
+        <span class="text-slate-500">Created by</span>
+        <span class="font-semibold text-slate-700">Maya</span>
+      </div>
+    </div>
+
+    <!-- Name input form -->
+    <form onsubmit="handleJoin(event)" novalidate>
+
+      <div class="mb-6">
+        <label for="display-name" class="block text-sm font-medium text-slate-700 mb-1.5">
+          What's your name?
+        </label>
+        <input
+          id="display-name"
+          type="text"
+          name="display-name"
+          placeholder="Enter your first name"
+          maxlength="30"
+          autocomplete="nickname"
+          autofocus
+          required
+          aria-required="true"
+          aria-describedby="name-hint name-error"
+          oninput="handleNameInput(this)"
+          class="name-input w-full h-12 px-4 text-base text-slate-800 bg-white border border-slate-300 rounded-xl placeholder-slate-400 transition-all duration-150"
+        >
+        <p id="name-hint" class="mt-1.5 text-xs text-brand-700 font-medium flex items-center gap-1">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <path d="M9 5.5C9 7.43 7.43 9 5.5 9S2 7.43 2 5.5 3.57 2 5.5 2 9 3.57 9 5.5z" stroke="#047857" stroke-width="1.2"/>
+            <path d="M5.5 5.5v2M5.5 3.5h.01" stroke="#047857" stroke-width="1.2" stroke-linecap="round"/>
+          </svg>
+          No account needed. Just your first name.
+        </p>
+        <p id="name-error" class="hidden mt-1 text-xs text-rose-600 flex items-center gap-1" role="alert" aria-live="polite">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><circle cx="6" cy="6" r="5" stroke="#f43f5e" stroke-width="1.5"/><path d="M6 3.5V6.5M6 8h.01" stroke="#f43f5e" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span id="name-error-text">Please enter your name</span>
+        </p>
+      </div>
+
+      <button
+        id="join-btn"
+        type="submit"
+        disabled
+        aria-disabled="true"
+        class="w-full h-12 bg-brand-700 text-white font-semibold text-base rounded-xl flex items-center justify-center gap-2 hover:bg-brand-800 active:scale-[0.98] transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:opacity-40 disabled:pointer-events-none"
+      >
+        <svg id="join-icon" width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+          <path d="M12 9H6M9 6l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+        <span id="join-label">Join Group</span>
+      </button>
+    </form>
+
+    <!-- Privacy note -->
+    <p class="text-center text-xs text-slate-400 mt-5 leading-relaxed">
+      Your display name is only visible to members of this group.<br>No email or password required.
+    </p>
+
+  </main>
+
+  <!-- Toast -->
+  <div id="toast" class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 max-w-sm w-[calc(100%-2rem)]" role="status" aria-live="polite">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8l3 3 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span id="toast-msg"></span>
+  </div>
+
+  <script>
+    // Existing names for demo duplicate-check
+    const existingNames = ['maya', 'jake', 'tom', 'sarah', 'alex'];
+
+    function handleNameInput(input) {
+      const val = input.value.trim();
+      const btn = document.getElementById('join-btn');
+      const err = document.getElementById('name-error');
+
+      if (val.length >= 2) {
+        btn.disabled = false;
+        btn.removeAttribute('aria-disabled');
+        input.classList.remove('error');
+        err.classList.add('hidden');
+        input.removeAttribute('aria-invalid');
+      } else {
+        btn.disabled = true;
+        btn.setAttribute('aria-disabled', 'true');
+      }
+    }
+
+    function handleJoin(e) {
+      e.preventDefault();
+      const input = document.getElementById('display-name');
+      const name = input.value.trim();
+      const err = document.getElementById('name-error');
+      const errText = document.getElementById('name-error-text');
+      const btn = document.getElementById('join-btn');
+      const joinIcon = document.getElementById('join-icon');
+      const joinLabel = document.getElementById('join-label');
+
+      // Validation
+      if (!name || name.length < 2) {
+        showFieldError(input, err, errText, 'Please enter your name (at least 2 characters)');
+        return;
+      }
+
+      if (existingNames.includes(name.toLowerCase())) {
+        showFieldError(input, err, errText, `Someone in this group is already named "${name}". Try a variation.`);
+        return;
+      }
+
+      // Loading state
+      btn.disabled = true;
+      btn.setAttribute('aria-busy', 'true');
+      joinIcon.innerHTML = `<svg class="animate-spin" width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><circle cx="9" cy="9" r="7" stroke="rgba(255,255,255,0.3)" stroke-width="2"/><path d="M9 2a7 7 0 017 7" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>`;
+      joinLabel.textContent = 'Joining...';
+
+      // Simulate API call then navigate to dashboard
+      setTimeout(() => {
+        sessionStorage.setItem('yourName', name);
+        sessionStorage.setItem('justJoined', 'true');
+        window.location.href = './dashboard.html';
+      }, 800);
+    }
+
+    function showFieldError(input, errEl, errText, message) {
+      input.classList.add('error');
+      input.setAttribute('aria-invalid', 'true');
+      errText.textContent = message;
+      errEl.classList.remove('hidden');
+      input.classList.remove('shake');
+      void input.offsetWidth;
+      input.classList.add('shake');
+      input.focus();
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-msg').textContent = msg;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 4000);
+    }
+  </script>
+</body>
+</html>

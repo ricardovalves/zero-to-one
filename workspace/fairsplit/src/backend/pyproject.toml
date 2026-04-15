@@ -1,0 +1,40 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+# Fail loudly if any test produces an unraisable exception
+filterwarnings = [
+    "error::RuntimeWarning",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "S",   # flake8-bandit (security)
+    "ANN", # flake8-annotations
+]
+ignore = [
+    "ANN101",  # missing type annotation for self
+    "ANN102",  # missing type annotation for cls
+    "S101",    # use of assert (allowed in tests)
+    "ANN401",  # Dynamically typed expressions (Any) — allowed in service args
+    "B008",    # Do not perform function calls in default args — needed for FastAPI Depends
+    "S311",    # Standard pseudo-random generators — not used for cryptographic purposes
+]
+exclude = ["migrations/*"]
+
+[tool.ruff.per-file-ignores]
+"tests/*" = ["ANN", "S"]  # No type annotations required in tests
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+ignore_missing_imports = true
+warn_return_any = false

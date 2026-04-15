@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nashville Trip — FairSplit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50:  '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0',
+              400: '#34d399', 500: '#10b981', 600: '#059669',
+              700: '#047857', 800: '#065f46', 900: '#064e3b',
+            }
+          },
+          fontFamily: { sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+    .fade-in { animation: fadeIn 0.25s ease forwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    .bottom-nav { padding-bottom: env(safe-area-inset-bottom, 0px); }
+    /* Pulse animation on the add button */
+    @keyframes softPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(4,120,87,0.3); }
+      50%       { box-shadow: 0 0 0 10px rgba(4,120,87,0); }
+    }
+    .pulse-cta { animation: softPulse 2.5s ease-in-out infinite; }
+    /* Receipt illustration paths */
+    @keyframes drawLine {
+      from { stroke-dashoffset: 100; }
+      to { stroke-dashoffset: 0; }
+    }
+  </style>
+</head>
+<body class="h-full bg-slate-50 font-sans antialiased">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-100 sticky top-0 z-40">
+    <div class="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <a href="./index.html" class="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded-lg">
+          <div class="w-6 h-6 bg-brand-700 rounded-md flex items-center justify-center">
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path d="M7 1L9.5 5.5H13L10 8.5L11.5 13L7 10.5L2.5 13L4 8.5L1 5.5H4.5L7 1Z" fill="white"/>
+            </svg>
+          </div>
+        </a>
+        <h1 class="text-base font-semibold text-slate-800">Nashville Trip</h1>
+      </div>
+      <button
+        onclick="showInviteToast()"
+        class="inline-flex items-center gap-1.5 h-8 px-3 text-brand-700 text-xs font-semibold bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+        aria-label="Invite members to this group"
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M7 2.5v9M2.5 7h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Invite
+      </button>
+    </div>
+  </header>
+
+  <main class="max-w-2xl mx-auto px-4 pt-5 pb-24 fade-in">
+
+    <!-- Balance hero — empty/all-even state -->
+    <section class="bg-brand-50 border border-brand-100 rounded-2xl p-6 mb-5" aria-label="Your balance">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold text-brand-700/60 uppercase tracking-widest mb-1">Your Balance</p>
+          <p class="text-3xl font-bold text-brand-700 tabular-nums">$0.00</p>
+          <p class="text-sm text-brand-700/70 mt-1 font-medium">Everyone's even for now</p>
+        </div>
+        <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center flex-shrink-0">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M9 12l2 2 4-4" stroke="#047857" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="12" cy="12" r="9" stroke="#047857" stroke-width="1.75"/>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- Members section -->
+    <section class="mb-5" aria-label="Group members">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold text-slate-700">Members</h2>
+        <button onclick="showInviteToast()" class="text-xs text-brand-700 font-semibold hover:text-brand-800 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500 rounded">+ Invite</button>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+        <div class="flex items-center gap-3 px-4 py-3.5 border-b border-slate-100">
+          <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-sm flex items-center justify-center" aria-hidden="true">M</div>
+          <div class="flex-1">
+            <p class="text-sm font-semibold text-slate-800">Maya <span class="text-xs font-normal text-slate-400">(you · organizer)</span></p>
+          </div>
+          <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full font-medium">even</span>
+        </div>
+        <div class="flex items-center gap-3 px-4 py-3.5">
+          <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-800 font-semibold text-sm flex items-center justify-center" aria-hidden="true">J</div>
+          <div class="flex-1">
+            <p class="text-sm font-medium text-slate-700">Jake</p>
+          </div>
+          <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full font-medium">even</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Empty expenses state — primary empty state -->
+    <section aria-label="Expenses — no expenses yet">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold text-slate-700">Expenses</h2>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm px-6 py-12 text-center">
+
+        <!-- Illustration: receipt -->
+        <div class="w-20 h-20 mx-auto mb-6 relative">
+          <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <!-- Receipt body -->
+            <rect x="16" y="10" width="48" height="56" rx="4" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="2"/>
+            <!-- Receipt top serration -->
+            <path d="M16 14 Q20 10 24 14 Q28 18 32 14 Q36 10 40 14 Q44 18 48 14 Q52 10 56 14 Q60 18 64 14" stroke="#e2e8f0" stroke-width="1.5" fill="none"/>
+            <!-- Lines (content placeholder) -->
+            <rect x="24" y="24" width="32" height="3" rx="1.5" fill="#e2e8f0"/>
+            <rect x="24" y="32" width="24" height="2.5" rx="1.25" fill="#e2e8f0"/>
+            <rect x="24" y="39" width="20" height="2.5" rx="1.25" fill="#e2e8f0"/>
+            <rect x="24" y="46" width="28" height="2.5" rx="1.25" fill="#e2e8f0"/>
+            <!-- Amount line -->
+            <rect x="24" y="55" width="32" height="3" rx="1.5" fill="#a7f3d0"/>
+            <!-- Plus badge -->
+            <circle cx="60" cy="60" r="14" fill="#047857"/>
+            <path d="M60 54v12M54 60h12" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+
+        <h3 class="text-lg font-bold text-slate-700 mb-2">No expenses yet</h3>
+        <p class="text-sm text-slate-400 mb-6 max-w-xs mx-auto leading-relaxed">
+          Log your first shared expense and FairSplit will track who owes what automatically.
+        </p>
+
+        <a
+          href="./add-expense.html"
+          class="pulse-cta inline-flex items-center gap-2 h-12 px-8 bg-brand-700 text-white font-semibold text-base rounded-xl hover:bg-brand-800 active:scale-[0.98] transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+          aria-label="Add your first expense to this group"
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+            <path d="M9 3.75V14.25M3.75 9H14.25" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          Add First Expense
+        </a>
+
+        <div class="mt-5 pt-5 border-t border-slate-100">
+          <p class="text-xs text-slate-400 mb-2 font-medium">Waiting for others to join?</p>
+          <button
+            onclick="showInviteToast()"
+            class="inline-flex items-center gap-1.5 h-9 px-4 bg-slate-50 text-slate-600 text-sm font-medium rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            aria-label="Invite members to join this group"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M10 2L14 6M14 6L10 10M14 6H6C4.34 6 3 7.34 3 9v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Share invite link
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Tips / onboarding hints -->
+    <section class="mt-5" aria-label="Getting started tips">
+      <p class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">How it works</p>
+      <div class="space-y-2">
+
+        <div class="flex items-start gap-3 bg-white border border-slate-100 rounded-xl px-4 py-3.5 shadow-sm">
+          <div class="w-7 h-7 bg-brand-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M7 1L9 4.5H13L10 7l1.5 4.5L7 9.5 2.5 11.5 4 7 1 4.5H5L7 1z" stroke="#047857" stroke-width="1.2" stroke-linejoin="round"/></svg>
+          </div>
+          <div>
+            <p class="text-sm font-semibold text-slate-700">Log as you go</p>
+            <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">Add each expense as it happens — no limit on how many you can log.</p>
+          </div>
+        </div>
+
+        <div class="flex items-start gap-3 bg-white border border-slate-100 rounded-xl px-4 py-3.5 shadow-sm">
+          <div class="w-7 h-7 bg-brand-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M3 7h8M8 4l3 3-3 3" stroke="#047857" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div>
+            <p class="text-sm font-semibold text-slate-700">Settle up at the end</p>
+            <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">We'll calculate the fewest bank transfers needed to clear all debts.</p>
+          </div>
+        </div>
+
+        <div class="flex items-start gap-3 bg-white border border-slate-100 rounded-xl px-4 py-3.5 shadow-sm">
+          <div class="w-7 h-7 bg-brand-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="5.5" stroke="#047857" stroke-width="1.5"/><path d="M7 4v3l2 2" stroke="#047857" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </div>
+          <div>
+            <p class="text-sm font-semibold text-slate-700">Free, forever</p>
+            <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">No daily limits, no ads, no accounts to create. FairSplit is always free.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Bottom navigation -->
+  <nav class="bottom-nav fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40" aria-label="Main navigation">
+    <div class="max-w-2xl mx-auto h-16 flex items-center">
+      <a href="./dashboard.html" class="flex-1 flex flex-col items-center justify-center gap-0.5 h-full text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset" aria-current="page" aria-label="Dashboard — current page">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+          <path d="M3 9.5L11 3l8 6.5V19a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" stroke="currentColor" stroke-width="1.75" fill="#ecfdf5" stroke-linejoin="round"/>
+        </svg>
+        <span class="text-[10px] font-semibold">Home</span>
+      </a>
+      <a href="./add-expense.html" class="flex-1 flex flex-col items-center justify-center gap-0.5 h-full text-slate-400 hover:text-slate-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset" aria-label="Add a new expense">
+        <div class="w-10 h-10 bg-brand-700 rounded-xl flex items-center justify-center shadow-md">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 4v12M4 10h12" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+      </a>
+      <a href="./settle-up.html" class="flex-1 flex flex-col items-center justify-center gap-0.5 h-full text-slate-400 hover:text-slate-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset" aria-label="Settle up — view payment plan">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true"><path d="M3 11h16M14 7l5 4-5 4" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="text-[10px] font-medium">Settle</span>
+      </a>
+      <button onclick="showInviteToast()" class="flex-1 flex flex-col items-center justify-center gap-0.5 h-full text-slate-400 hover:text-slate-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset" aria-label="Group members and settings">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true"><circle cx="8.5" cy="7" r="3" stroke="currentColor" stroke-width="1.75"/><path d="M2 19c0-3.59 2.91-6.5 6.5-6.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/><circle cx="16" cy="8.5" r="2.5" stroke="currentColor" stroke-width="1.75"/><path d="M13 19c0-2.76 1.79-5 4-5h.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+        <span class="text-[10px] font-medium">Group</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Toast -->
+  <div id="toast" class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 max-w-sm w-[calc(100%-2rem)]" role="status" aria-live="polite">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8l3 3 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span id="toast-msg"></span>
+  </div>
+
+  <script>
+    function showInviteToast() {
+      if (navigator.share) {
+        navigator.share({ title: 'Join Nashville Trip on FairSplit', url: 'https://fairsplit.app/join/abc-xyz-123' });
+      } else {
+        if (navigator.clipboard) navigator.clipboard.writeText('https://fairsplit.app/join/abc-xyz-123');
+        showToast('Invite link copied — paste it in your group chat!');
+      }
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-msg').textContent = msg;
+      toast.classList.remove('hidden');
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => toast.classList.add('hidden'), 3500);
+    }
+  </script>
+</body>
+</html>

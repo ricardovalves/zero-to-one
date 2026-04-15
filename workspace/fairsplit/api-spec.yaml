@@ -1,0 +1,2104 @@
+openapi: 3.1.0
+
+info:
+  title: FairSplit API
+  version: 1.0.0
+  description: |
+    Zero-dependency shared expense tracker API.
+
+    ## Authentication
+    All group-scoped endpoints require a valid member session token.
+    The token is issued by `POST /api/v1/groups` (group creation) or
+    `POST /api/v1/groups/{group_id}/members` (join via invite link).
+
+    **Primary:** `httpOnly` cookie named `fairsplit_member_token`.
+    **Fallback:** `Authorization: Bearer <token>` header (API clients).
+
+    The token is a JWT signed with HS256 containing:
+    ```json
+    {
+      "sub": "<member_id>",
+      "group_id": "<group_id>",
+      "is_admin": true,
+      "iat": 1713200000,
+      "exp": 1715792000
+    }
+    ```
+
+    ## Response Envelopes
+    **Singleton responses** (auth, single-resource GET/POST/PATCH/DELETE):
+    The resource object is returned directly at the top level. No wrapper.
+
+    **List responses** (collection GET endpoints):
+    ```json
+    {
+      "data": [...],
+      "total": 23,
+      "page": 1,
+      "per_page": 20
+    }
+    ```
+
+    **Error responses** (all 4xx and 5xx):
+    ```json
+    {
+      "error": {
+        "code": "VALIDATION_ERROR",
+        "message": "Human-readable description.",
+        "field": "amount",
+        "request_id": "req_abc123"
+      }
+    }
+    ```
+
+    ## Idempotency
+    Mutation endpoints (`POST` for create, `DELETE` for soft-delete) accept an
+    `X-Idempotency-Key` header containing a client-generated UUID. The server
+    stores the response for 24 hours. Duplicate requests with the same key
+    return the original response without re-processing.
+
+  contact:
+    name: FairSplit
+    url: https://github.com/your-org/fairsplit
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Local development (docker compose up)
+  - url: https://fairsplit-api.fly.dev/api/v1
+    description: Staging (Fly.io free tier)
+  - url: https://api.fairsplit.app/api/v1
+    description: Production
+
+tags:
+  - name: health
+    description: Health check — not authenticated, not rate-limited
+  - name: groups
+    description: Group creation and management
+  - name: members
+    description: Join a group and view member roster
+  - name: expenses
+    description: Log, view, edit, and delete expenses
+  - name: balances
+    description: Computed net balances for all members
+  - name: settle-up
+    description: Minimum-transfer settle-up algorithm
+  - name: settlements
+    description: Record and delete completed transfers
+
+paths:
+
+  # ============================================================
+  # HEALTH
+  # ============================================================
+
+  /health:
+    get:
+      operationId: getHealth
+      summary: Health check
+      description: |
+        Returns 200 if the API and database are operational.
+        Returns 503 if the database is unreachable.
+        Not authenticated. Not rate-limited. Used by Fly.io health checks and
+        the CD pipeline smoke test.
+      tags: [health]
+      responses:
+        "200":
+          description: API and database are healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: healthy
+                db: connected
+                timestamp: "2026-04-15T14:00:00Z"
+        "503":
+          description: Database unreachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: unhealthy
+                db: unreachable
+                timestamp: "2026-04-15T14:00:00Z"
+
+  # ============================================================
+  # GROUPS
+  # ============================================================
+
+  /groups:
+    post:
+      operationId: createGroup
+      summary: Create a new expense group
+      description: |
+        Creates a group, adds the creator as the first member with the admin
+        role, and issues a signed member session token (returned in the response
+        body AND set as an httpOnly cookie).
+
+        Idempotent: provide `X-Idempotency-Key` to prevent double-submission.
+        A duplicate key returns the original 201 response without creating a
+        second group.
+
+        **Rate limit:** 10 requests per IP per hour.
+      tags: [groups]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGroupRequest"
+            example:
+              name: "Nashville Trip"
+              description: "June 2026 friend group"
+              admin_display_name: "Maya"
+              default_currency: "USD"
+      responses:
+        "201":
+          description: Group created successfully
+          headers:
+            Set-Cookie:
+              description: |
+                httpOnly session cookie. Format:
+                fairsplit_member_token=<jwt>; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateGroupResponse"
+              example:
+                group:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  name: "Nashville Trip"
+                  description: "June 2026 friend group"
+                  invite_token: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                  status: active
+                  default_currency: USD
+                  member_count: 1
+                  expense_count: 0
+                  created_at: "2026-04-15T14:00:00Z"
+                  updated_at: "2026-04-15T14:00:00Z"
+                member:
+                  id: "a3bb1891-1f4e-4e7a-8c4f-6d4a1e2b3c4d"
+                  display_name: "Maya"
+                  is_admin: true
+                  joined_at: "2026-04-15T14:00:00Z"
+                token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /groups/{group_id}:
+    get:
+      operationId: getGroup
+      summary: Get group details
+      description: |
+        Returns group metadata including member count, expense count, and the
+        invite token (for sharing the invite link).
+        Requires a valid member session token for the specified group.
+      tags: [groups]
+      security:
+        - MemberCookie: []
+        - BearerToken: []
+      parameters:
+        - $ref: "#/components/parameters/GroupId"
+      responses:
+        "200":
+          description: Group details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Group"
+              example:
+                id: "550e8400-e29b-41d4-a716-446655440000"
+                name: "Nashville Trip"
+                description: "June 2026 friend group"
+                invite_token: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                status: active
+                default_currency: USD
+                member_count: 6
+                expense_count: 23
+                created_at: "2026-04-15T14:00:00Z"
+                updated_at: "2026-04-15T18:30:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    patch:
+      operationId: updateGroup
+      summary: Update group name, description, or status
+      description: |
+        Admin-only. Updates the group name, description, or status (active/archived).
+        All fields are optional — only supplied fields are updated.
+        Closing a group with outstanding balances returns a 409 with
+        `GROUP_HAS_OUTSTANDING_BALANCES`. The admin may override with
+        `force: true`.
+      tags: [groups]
+      security:
+        - MemberCookie: []
+        - BearerToken: []
+      parameters:
+        - $ref: "#/components/parameters/GroupId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateGroupRequest"
+            example:
+              name: "Nashville Trip 2026"
+              status: archived
+              force: false
+      responses:
+        "200":
+          description: Group updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Group"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Group has outstanding balances (force=false)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: GROUP_HAS_OUTSTANDING_BALANCES
+                  message: "Some members still have outstanding balances. Pass force=true to archive anyway."
+                  request_id: req_abc123
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /groups/{group_id}/invite:
+    post:
+      operationId: regenerateInviteToken
+      summary: Regenerate the invite token (admin only)
+      description: |
+        Admin-only. Generates a new invite token for the group, invalidating
+        the previous invite link. Useful if the invite link has been shared
+        publicly and the admin wants to restrict new joins.
+        Not needed in typical use — the default invite token is permanent.
+      tags: [groups]
+      security:
+        - MemberCookie: []
+        - BearerToken: []
+      parameters:
+        - $ref: "#/components/parameters/GroupId"
+      responses:
+        "200":
+          description: New invite token generated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invite_token]
+                properties:
+                  invite_token:
+                    type: string
+                    format: uuid
+                    description: New invite token. Old token is now invalid.
+              example:
+                invite_token: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ============================================================
+  # MEMBERS
+  # ============================================================
+
+  /groups/{group_id}/members:
+    get:
+      operationId: listMembers
+      summary: List all members in a group
+      description: |
+        Returns all members of the group sorted alphabetically by display name.
+        Requires a valid member session token for the specified group.
+      tags: [members]
+      security:
+        - MemberCookie: []
+        - BearerToken: []
+      parameters:
+        - $ref: "#/components/parameters/GroupId"
+      responses:
+        "200":
+          description: List of members
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, total, page, per_page]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Member"
+                  total:
+                    type: integer
+                    example: 6
+                  page:
+                    type: integer
+                    example: 1
+                  per_page:
+                    type: integer
+                    example: 100
+              example:
+                data:
+                  - id: "a3bb1891-1f4e-4e7a-8c4f-6d4a1e2b3c4d"
+                    display_name: "Maya"
+                    is_admin: true
+                    joined_at: "2026-04-15T14:00:00Z"
+                  - id: "b4cc2902-2g5f-5f8b-9d5g-7e5b2f3c4d5e"
+                    display_name: "Daniel"
+                    is_admin: false
+                    joined_at: "2026-04-15T14:05:00Z"
+                total: 6
+                page: 1
+                per_page: 100
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /join/{invite_token}:
+    post:
+      operationId: joinGroup
+      summary: Join a group via invite link
+      description: |
+        Join a group by providing a display name. No email or password required.
+        Returns a session token in the response body AND sets an httpOnly cookie.
+        The `invite_token` is the UUID from the shareable link:
+        `{base_url}/join/{invite_token}`.
+
+        If `invite_token` does not match any active group, returns 404 with
+        `INVALID_INVITE_TOKEN`.
+
+        If the group is archived, returns 409 with `GROUP_ARCHIVED`.
+
+        **Duplicate display names:** Allowed. If the submitted name already exists
+        in the group, the server appends " (2)" (or higher) and returns the
+        modified name in the response. The client should display this modified name.
+
+        **Rate limit:** 30 requests per IP per hour.
+
+        Idempotent: if an `X-Idempotency-Key` is provided and the client
+        accidentally submits twice (e.g., double-tap), the second request returns
+        the original 201 without creating a second member record.
+      tags: [members]
+      parameters:
+        - name: invite_token
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The group invite token from the shareable link URL
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinGroupRequest"
+            example:
+              display_name: "Daniel"
+      responses:
+        "201":
+          description: Joined group successfully
+          headers:
+            Set-Cookie:
+              description: httpOnly session cookie
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JoinGroupResponse"
+              example:
+                group:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  name: "Nashville Trip"
+                  status: active
+                  default_currency: USD
+                  member_count: 7
+                member:
+                  id: "b4cc2902-2g5f-5f8b-9d5g-7e5b2f3c4d5e"
+                  display_name: "Daniel"
+                  is_admin: false
+                  joined_at: "2026-04-15T14:05:00Z"
+                token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        "404":
+          description: Invite token not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: INVALID_INVITE_TOKEN
+                  message: "This link is no longer valid. Ask the group admin for a new one."
+                  request_id: req_abc123
+        "409":
+          description: Group is archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: GROUP_ARCHIVED
+                  message: "This group has been closed. You can view it in read-only mode."
+                  request_id: req_abc123
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /groups/{group_id}/members/me:
+    get:
+      operationId: getCurrentMember
+      summary: Get the current authenticated member's profile
+      description: |
+        Returns the member record for the currently authenticated session.
+        Used on page load to confirm session validity and get the current
+        member's ID and display name.
+      tags: [members]
+      security:
+        - MemberCookie: []
+        - BearerToken: []
+      parameters:
+        - $ref: "#/components/parameters/GroupId"
+      responses:
+        "200":
+          description: Current member profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+              example:
+                id: "a3bb1891-1f4e-4e7a-8c4f-6d4a1e2b3c4d"
+                display_name: "Maya"
+                is_admin: true
+                joined_at: "2026-04-15T14:00:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ============================================================
+  # EXPENSES
+  # ============================================================
+
+  /groups/{group_id}/expenses:
+    get:
+      operationId: listExpenses
+      summary: List expenses in a group (paginated)
+      description: |
+        Returns active (not soft-deleted) expenses for a group, sorted by
+        `created_at DESC`. Includes payer name and split count per expense.
+        For full split breakdown, use `GET /groups/{id}/expenses/{expense_id}`.
+
+        **Pagination:** offset-based. Default: page=1, per_page=20. Maximum per_page=100.
+      tags: [expenses]
+      security:
+        - MemberCookie: []
+        - BearerToken: []
+      parameters:
+        - $ref: "#/components/parameters/GroupId"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Paginated expense list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, total, page, per_page]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ExpenseSummary"
+                  total:
+                    type: integer
+                    description: Total count of active expenses in the group
+                    example: 23
+                  page:
+                    type: integer
+                    example: 1
+                  per_page:
+                    type: integer
+                    example: 20
+              example:
+                data:
+                  - id: "c5dd3013-3h6g-6g9c-0e6h-8f6c3g4d5e6f"
+                    description: "Airbnb deposit"
+                    amount_cents: 84000
+                    amount_display: "$840.00"
+                    currency: USD
+                    split_type: equal
+                    split_count: 6
+                    payer_id: "a3bb1891-1f4e-4e7a-8c4f-6d4a1e2b3c4d"
+                    payer_name: "Maya"
+                    logged_by_name: "Maya"
+                    expense_date: "2026-04-15"
+                    created_at: "2026-04-15T14:10:00Z"
+                total: 23
+                page: 1
+                per_page: 20
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    post:
+      operationId: createExpense
+      summary: Log a new expense
+      description: |
+        Creates an expense with a full split breakdown. The split must satisfy:
+        - `equal`: amounts are computed server-side; `splits` array must list
+          all member IDs to include in the split (amounts are ignored if provided).
+        - `custom_amount`: `splits[].amount_cents` must sum exactly to
+          `amount_cents`. Returns 422 `SPLIT_SUM_MISMATCH` otherwise.
+        - `custom_percentage`: `splits[].percentage` must sum exactly to 100.0.
+          Server converts to cents; any 1-cent rounding remainder is added to
+          the first member's split, alphabetically.
+
+        `payer_member_id` does not need to be in the `splits` array (payer
+        may be paying for non-participants — allowed by design).
+
+        **Idempotent:** provide `X-Idempotency-Key`. Double-submits return the
+        original 201 without creating a duplicate expense.
+
+        **Rate limit:** 60 requests per member per hour.
+      tags: [expenses]
+      security:
+        - MemberCookie: []
+        - BearerToken: []
+      parameters:
+        - $ref: "#/components/parameters/GroupId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExpenseRequest"
+            examples:
+              equal_split:
+                summary: Equal split among all members
+                value:
+                  description: "Airbnb deposit"
+                  amount_cents: 84000
+                  currency: "USD"
+                  payer_member_id: "a3bb1891-1f4e-4e7a-8c4f-6d4a1e2b3c4d"
+                  split_type: "equal"
+                  expense_date: "2026-04-15"
+                  splits:
+                    - member_id: "a3bb1891-1f4e-4e7a-8c4f-6d4a1e2b3c4d"
+                    - member_id: "b4cc2902-2g5f-5f8b-9d5g-7e5b2f3c4d5e"
+                    - member_id: "c5dd3013-3h6g-6g9c-0e6h-8f6c3g4d5e6f"
+              custom_amount:
+                summary: Custom amount split
+                value:
+                  description: "Groceries"
+                  amount_cents: 4550
+                  currency: "USD"
+                  payer_member_id: "a3bb1891-1f4e-4e7a-8c4f-6d4a1e2b3c4d"
+                  split_type: "custom_amount"
+                  expense_date: "2026-04-15"
+                  splits:
+                    - member_id: "a3bb1891-1f4e-4e7a-8c4f-6d4a1e2b3c4d"
+                      amount_cents: 2275
+                    - member_id: "b4cc2902-2g5f-5f8b-9d5g-7e5b2f3c4d5e"
+                      amount_cents: 2275
+              custom_percentage:
+                summary: Custom percentage split
+                value:
+                  description: "Shared Uber"
+                  amount_cents: 2400
+                  currency: "USD"
+                  payer_member_id: "b4cc2902-2g5f-5f8b-9d5g-7e5b2f3c4d5e"
+                  split_type: "custom_percentage"
+                  expense_date: "2026-04-15"
+                  splits:
+                    - member_id: "a3bb1891-1f4e-4e7a-8c4f-6d4a1e2b3c4d"
+                      percentage: 60.0
+                    - member_id: "b4cc2902-2g5f-5f8b-9d5g-7e5b2f3c4d5e"
+                      percentage: 40.0
+      responses:
+        "201":
+          description: Expense created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expense"
+        "409":
+          description: Group is archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: GROUP_ARCHIVED
+                  message: "Cannot add expenses to an archived group."
+                  request_id: req_abc123
+        "422":
+          description: Validation error or split sum mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                split_mismatch:
+                  summary: Split amounts don't sum to expense total
+                  value:
+                    error:
+                      code: SPLIT_SUM_MISMATCH
+                      message: "Split amounts sum to 4500 cents but expense total is 4550 cents."
+                      request_id: req_abc123
+                validation_error:
+                  summary: Missing required field
+                  value:
+                    error:
+                      code: VALIDATION_ERROR
+                      message: "Description is required."
+                      field: description
+                      request_id: req_abc123
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /groups/{group_id}/expenses/{expense_id}:
+    get:
+      operationId: getExpense
+      summary: Get full expense detail with split breakdown
+      description: |
+        Returns the expense with the complete per-member split breakdown.
+        Soft-deleted expenses return 404.
+      tags: [expenses]
+      security:
+        - MemberCookie: []
+        - BearerToken: []
+      parameters:
+        - $ref: "#/components/parameters/GroupId"
+        - $ref: "#/components/parameters/ExpenseId"
+      responses:
+        "200":
+          description: Expense detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expense"
+              example:
+                id: "c5dd3013-3h6g-6g9c-0e6h-8f6c3g4d5e6f"
+                group_id: "550e8400-e29b-41d4-a716-446655440000"
+                description: "Airbnb deposit"
+                amount_cents: 84000
+                amount_display: "$840.00"
+                currency: USD
+                split_type: equal
+                expense_date: "2026-04-15"
+                payer:
+                  id: "a3bb1891-1f4e-4e7a-8c4f-6d4a1e2b3c4d"
+                  display_name: "Maya"
+                logged_by:
+                  display_name: "Maya"
+                splits:
+                  - member_id: "a3bb1891-1f4e-4e7a-8c4f-6d4a1e2b3c4d"
+                    display_name: "Maya"
+                    amount_cents: 14000
+                    amount_display: "$140.00"
+                    percentage: null
+                  - member_id: "b4cc2902-2g5f-5f8b-9d5g-7e5b2f3c4d5e"
+                    display_name: "Daniel"
+                    amount_cents: 14000
+                    amount_display: "$140.00"
+                    percentage: null
+                created_at: "2026-04-15T14:10:00Z"
+                updated_at: "2026-04-15T14:10:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    patch:
+      operationId: updateExpense
+      summary: Edit an expense
+      description: |
+        Updates an expense. The caller must be either:
+        - The member who originally logged the expense (`logged_by_member_id`), or
+        - A group admin.
+
+        Returns 403 `PERMISSION_DENIED` otherwise.
+
+        All fields are optional. Only provided fields are updated. If `splits`
+        is provided, the full split array must be provided (not a partial update).
+        Split validation rules are the same as on creation.
+
+        The group must not be archived (returns 409 `GROUP_ARCHIVED`).
+      tags: [expenses]
+      security:
+        - MemberCookie: []
+        - BearerToken: []
+      parameters:
+        - $ref: "#/components/parameters/GroupId"
+        - $ref: "#/components/parameters/ExpenseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateExpenseRequest"
+            example:
+              description: "Airbnb deposit (corrected)"
+              amount_cents: 90000
+              split_type: equal
+              splits:
+                - member_id: "a3bb1891-1f4e-4e7a-8c4f-6d4a1e2b3c4d"
+                - member_id: "b4cc2902-2g5f-5f8b-9d5g-7e5b2f3c4d5e"
+      responses:
+        "200":
+          description: Expense updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expense"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/GroupArchived"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+    delete:
+      operationId: deleteExpense
+      summary: Soft-delete an expense
+      description: |
+        Soft-deletes an expense (sets `deleted_at`). The expense no longer
+        appears in the expense list or balance computation.
+
+        The caller must be either:
+        - The member who originally logged the expense, or
+        - A group admin.
+
+        Returns 403 `PERMISSION_DENIED` otherwise.
+
+        Idempotent: deleting an already-deleted expense returns 200 (not 404).
+      tags: [expenses]
+      security:
+        - MemberCookie: []
+        - BearerToken: []
+      parameters:
+        - $ref: "#/components/parameters/GroupId"
+        - $ref: "#/components/parameters/ExpenseId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Expense deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message:
+                    type: string
+              example:
+                message: "Expense deleted successfully."
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/GroupArchived"
+
+  # ============================================================
+  # BALANCES
+  # ============================================================
+
+  /groups/{group_id}/balances:
+    get:
+      operationId: getBalances
+      summary: Get net balances for all members
+      description: |
+        Computes and returns the net balance for every member in the group.
+        Net balance = total paid - total owed from expense splits + settlements paid - settlements received.
+        All amounts are in integer cents.
+
+        This endpoint is called by the frontend every 10 seconds (SWR polling).
+        It must complete in < 200ms at p95 for groups up to 50 members and
+        200 expenses.
+
+        Positive `net_cents` = creditor (owed money, shown in green).
+        Negative `net_cents` = debtor (owes money, shown in red).
+        Zero `net_cents` = settled (shown in gray).
+      tags: [balances]
+      security:
+        - MemberCookie: []
+        - BearerToken: []
+      parameters:
+        - $ref: "#/components/parameters/GroupId"
+      responses:
+        "200":
+          description: Net balances for all members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalancesResponse"
+              example:
+                currency: USD
+                members:
+                  - member_id: "a3bb1891-1f4e-4e7a-8c4f-6d4a1e2b3c4d"
+                    display_name: "Maya"
+                    net_cents: 8450
+                    net_display: "+$84.50"
+                    paid_total_cents: 24000
+                    owed_total_cents: 15550
+                    settled_out_cents: 0
+                    settled_in_cents: 0
+                    status: creditor
+                  - member_id: "b4cc2902-2g5f-5f8b-9d5g-7e5b2f3c4d5e"
+                    display_name: "Daniel"
+                    net_cents: -4200
+                    net_display: "-$42.00"
+                    paid_total_cents: 0
+                    owed_total_cents: 4200
+                    settled_out_cents: 0
+                    settled_in_cents: 0
+                    status: debtor
+                computed_at: "2026-04-15T18:30:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /groups/{group_id}/balances/{member_id}:
+    get:
+      operationId: getMemberBalance
+      summary: Get detailed balance breakdown for a single member
+      description: |
+        Returns the balance breakdown for a single member: total paid,
+        total owed, settlements, and net balance. Used in the "tap a member
+        balance" detail view.
+      tags: [balances]
+      security:
+        - MemberCookie: []
+        - BearerToken: []
+      parameters:
+        - $ref: "#/components/parameters/GroupId"
+        - name: member_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The member's UUID
+      responses:
+        "200":
+          description: Member balance detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberBalanceDetail"
+              example:
+                member_id: "a3bb1891-1f4e-4e7a-8c4f-6d4a1e2b3c4d"
+                display_name: "Maya"
+                net_cents: 8450
+                net_display: "+$84.50"
+                paid_total_cents: 24000
+                owed_total_cents: 15550
+                settled_out_cents: 0
+                settled_in_cents: 0
+                expense_count_paid: 8
+                summary: "Maya paid $240.00 across 8 expenses. Her share was $155.50. Net: +$84.50."
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ============================================================
+  # SETTLE-UP
+  # ============================================================
+
+  /groups/{group_id}/settle-up:
+    get:
+      operationId: getSettleUp
+      summary: Compute the minimum-transfer settle-up plan
+      description: |
+        Runs the greedy max-heap minimum-transfer algorithm on the current
+        net balances and returns an ordered list of transfers that, if
+        completed, would bring all members' net balances to zero.
+
+        **Algorithm:** O(n log n) greedy max-heap (see technical-spec.md §1
+        for full pseudocode and correctness guarantees).
+
+        **Correctness note:** The algorithm is a heuristic. It produces the
+        exact minimum number of transfers for groups up to ~20 members with
+        all tested balance configurations. For larger groups, it produces a
+        near-optimal result. This is documented in the product FAQ.
+
+        If all balances are zero, returns an empty `transfers` array with
+        `all_settled: true`.
+
+        This endpoint is never cached — it always reflects the current state
+        of expenses and settlements.
+
+        **Performance:** < 100ms p95 for groups up to 50 members.
+      tags: [settle-up]
+      security:
+        - MemberCookie: []
+        - BearerToken: []
+      parameters:
+        - $ref: "#/components/parameters/GroupId"
+        - name: currency
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: "^[A-Z]{3}$"
+            default: "USD"
+          description: |
+            ISO 4217 currency code. For multi-currency groups, the settle-up
+            is computed independently per currency. This parameter selects
+            which currency to compute. Defaults to the group's default_currency.
+      responses:
+        "200":
+          description: Settle-up plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettleUpResponse"
+              examples:
+                with_transfers:
+                  summary: Group with outstanding balances
+                  value:
+                    group_name: "Nashville Trip"
+                    currency: USD
+                    all_settled: false
+                    transfer_count: 2
+                    transfers:
+                      - debtor_id: "b4cc2902-2g5f-5f8b-9d5g-7e5b2f3c4d5e"
+                        debtor_name: "Daniel"
+                        creditor_id: "a3bb1891-1f4e-4e7a-8c4f-6d4a1e2b3c4d"
+                        creditor_name: "Maya"
+                        amount_cents: 4200
+                        amount_display: "$42.00"
+                        currency: USD
+                      - debtor_id: "d6ee4124-4i7h-7h0d-1f7i-9g7d4h5e6f7g"
+                        debtor_name: "Jake"
+                        creditor_id: "e7ff5235-5j8i-8i1e-2g8j-0h8e5i6f7g8h"
+                        creditor_name: "Tom"
+                        amount_cents: 1850
+                        amount_display: "$18.50"
+                        currency: USD
+                    clipboard_text: "FairSplit — Nashville Trip Settle-Up\n• Daniel pays Maya $42.00\n• Jake pays Tom $18.50\nPowered by FairSplit: https://fairsplit.app/groups/550e8400-e29b-41d4-a716-446655440000"
+                    computed_at: "2026-04-15T18:30:00Z"
+                all_settled:
+                  summary: All balances are zero
+                  value:
+                    group_name: "Nashville Trip"
+                    currency: USD
+                    all_settled: true
+                    transfer_count: 0
+                    transfers: []
+                    clipboard_text: "FairSplit — Nashville Trip\nEveryone is settled up. Nothing to pay."
+                    computed_at: "2026-04-15T18:30:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ============================================================
+  # SETTLEMENTS
+  # ============================================================
+
+  /groups/{group_id}/settlements:
+    get:
+      operationId: listSettlements
+      summary: List settlement records for a group
+      description: |
+        Returns active (not soft-deleted) settlement records for the group,
+        sorted by `created_at DESC`. Settlements appear in the activity feed
+        alongside expenses.
+      tags: [settlements]
+      security:
+        - MemberCookie: []
+        - BearerToken: []
+      parameters:
+        - $ref: "#/components/parameters/GroupId"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Paginated settlement list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, total, page, per_page]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Settlement"
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  per_page:
+                    type: integer
+              example:
+                data:
+                  - id: "f8gg6346-6k9j-9j2f-3h9k-1i9f6j7g8h9i"
+                    group_id: "550e8400-e29b-41d4-a716-446655440000"
+                    payer_id: "b4cc2902-2g5f-5f8b-9d5g-7e5b2f3c4d5e"
+                    payer_name: "Daniel"
+                    payee_id: "a3bb1891-1f4e-4e7a-8c4f-6d4a1e2b3c4d"
+                    payee_name: "Maya"
+                    amount_cents: 4200
+                    amount_display: "$42.00"
+                    currency: USD
+                    created_at: "2026-04-16T10:00:00Z"
+                total: 1
+                page: 1
+                per_page: 20
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    post:
+      operationId: createSettlement
+      summary: Record a completed transfer (mark as paid)
+      description: |
+        Records that a transfer suggested by the settle-up plan has been
+        completed. This creates a settlement record that reduces both parties'
+        balances accordingly.
+
+        The caller must be the payer (`payer_member_id`) or a group admin.
+
+        **Idempotent:** provide `X-Idempotency-Key` to prevent double-recording.
+
+        **Amount:** In MVP, the settlement must be for the exact suggested amount
+        from the settle-up plan. Partial settlements are not supported.
+
+        **Rate limit:** 30 requests per member per hour.
+      tags: [settlements]
+      security:
+        - MemberCookie: []
+        - BearerToken: []
+      parameters:
+        - $ref: "#/components/parameters/GroupId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSettlementRequest"
+            example:
+              payer_member_id: "b4cc2902-2g5f-5f8b-9d5g-7e5b2f3c4d5e"
+              payee_member_id: "a3bb1891-1f4e-4e7a-8c4f-6d4a1e2b3c4d"
+              amount_cents: 4200
+              currency: USD
+      responses:
+        "201":
+          description: Settlement recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settlement"
+              example:
+                id: "f8gg6346-6k9j-9j2f-3h9k-1i9f6j7g8h9i"
+                group_id: "550e8400-e29b-41d4-a716-446655440000"
+                payer_id: "b4cc2902-2g5f-5f8b-9d5g-7e5b2f3c4d5e"
+                payer_name: "Daniel"
+                payee_id: "a3bb1891-1f4e-4e7a-8c4f-6d4a1e2b3c4d"
+                payee_name: "Maya"
+                amount_cents: 4200
+                amount_display: "$42.00"
+                currency: USD
+                created_at: "2026-04-16T10:00:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/GroupArchived"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /groups/{group_id}/settlements/{settlement_id}:
+    delete:
+      operationId: deleteSettlement
+      summary: Reverse a settlement (soft-delete)
+      description: |
+        Soft-deletes a settlement record (sets `deleted_at`). This restores the
+        original balances as if the settlement never happened.
+
+        The caller must be the payer or a group admin.
+        Any group member may also delete a settlement if `any_member_can_delete`
+        is true (not configurable in MVP — default: payer or admin only).
+      tags: [settlements]
+      security:
+        - MemberCookie: []
+        - BearerToken: []
+      parameters:
+        - $ref: "#/components/parameters/GroupId"
+        - name: settlement_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The settlement's UUID
+      responses:
+        "200":
+          description: Settlement reversed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message:
+                    type: string
+              example:
+                message: "Settlement reversed. Balances have been restored."
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+# ============================================================
+# COMPONENTS
+# ============================================================
+
+components:
+
+  securitySchemes:
+    MemberCookie:
+      type: apiKey
+      in: cookie
+      name: fairsplit_member_token
+      description: |
+        httpOnly session cookie issued on group creation or group join.
+        Set by the server. Cannot be accessed by JavaScript.
+        Expiry: 30 days, rolling (reset on each valid request).
+    BearerToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Fallback for API clients that cannot use cookies.
+        Same JWT as the cookie value. Pass in Authorization: Bearer <token> header.
+
+  parameters:
+    GroupId:
+      name: group_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: The group's UUID
+
+    ExpenseId:
+      name: expense_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: The expense's UUID
+
+    IdempotencyKey:
+      name: X-Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        format: uuid
+      description: |
+        Client-generated UUID for idempotency protection. Generate one UUID
+        when the form opens and reuse it on all retries. The server returns
+        the original response for duplicate keys (within 24 hours).
+
+  responses:
+    Unauthorized:
+      description: No session or session expired
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            no_session:
+              value:
+                error:
+                  code: NO_SESSION
+                  message: "No session token found. Please join the group first."
+                  request_id: req_abc123
+            session_expired:
+              value:
+                error:
+                  code: SESSION_EXPIRED
+                  message: "Your session has expired. Please re-enter your name to continue."
+                  request_id: req_abc123
+
+    Forbidden:
+      description: Valid session but insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            permission_denied:
+              value:
+                error:
+                  code: PERMISSION_DENIED
+                  message: "You can only edit expenses you logged, or you must be the group admin."
+                  request_id: req_abc123
+            wrong_group:
+              value:
+                error:
+                  code: MEMBER_WRONG_GROUP
+                  message: "Your session token is for a different group."
+                  request_id: req_abc123
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: GROUP_NOT_FOUND
+              message: "Group not found. The link may be invalid."
+              request_id: req_abc123
+
+    ValidationError:
+      description: Request body failed validation
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: VALIDATION_ERROR
+              message: "Amount must be greater than zero."
+              field: amount_cents
+              request_id: req_abc123
+
+    RateLimitExceeded:
+      description: Too many requests
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds to wait before retrying
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: RATE_LIMIT_EXCEEDED
+              message: "Too many requests. Please wait 42 seconds."
+              request_id: req_abc123
+
+    InternalError:
+      description: Unhandled server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: INTERNAL_ERROR
+              message: "Something went wrong. Please try again."
+              request_id: req_abc123
+
+    GroupArchived:
+      description: Action not allowed on archived group
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: GROUP_ARCHIVED
+              message: "This group is archived. No new expenses or settlements can be added."
+              request_id: req_abc123
+
+  schemas:
+
+    HealthResponse:
+      type: object
+      required: [status, db, timestamp]
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+        db:
+          type: string
+          enum: [connected, unreachable]
+        timestamp:
+          type: string
+          format: date-time
+
+    Group:
+      type: object
+      required:
+        - id
+        - name
+        - invite_token
+        - status
+        - default_currency
+        - member_count
+        - expense_count
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Group UUID (not the invite token — not guessable by design)
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        description:
+          type: string
+          maxLength: 200
+          nullable: true
+        invite_token:
+          type: string
+          format: uuid
+          description: |
+            The token used in the invite link: {base_url}/join/{invite_token}.
+            Different from the group ID — can be regenerated by admin.
+        status:
+          type: string
+          enum: [active, archived]
+        default_currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+          example: USD
+        member_count:
+          type: integer
+          minimum: 1
+        expense_count:
+          type: integer
+          minimum: 0
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Member:
+      type: object
+      required: [id, display_name, is_admin, joined_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 40
+        is_admin:
+          type: boolean
+        joined_at:
+          type: string
+          format: date-time
+
+    ExpenseSplit:
+      type: object
+      required: [member_id, display_name, amount_cents, amount_display]
+      properties:
+        member_id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+        amount_cents:
+          type: integer
+          minimum: 0
+          description: Member's share of this expense in integer cents
+        amount_display:
+          type: string
+          description: Formatted display string (e.g., "$14.00")
+        percentage:
+          type: number
+          format: float
+          nullable: true
+          description: Only populated for custom_percentage split type
+
+    Expense:
+      type: object
+      required:
+        - id
+        - group_id
+        - description
+        - amount_cents
+        - amount_display
+        - currency
+        - split_type
+        - expense_date
+        - payer
+        - logged_by
+        - splits
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        group_id:
+          type: string
+          format: uuid
+        description:
+          type: string
+          maxLength: 200
+        amount_cents:
+          type: integer
+          minimum: 1
+          description: Total expense amount in integer cents
+        amount_display:
+          type: string
+          description: Formatted display string (e.g., "$840.00")
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        split_type:
+          type: string
+          enum: [equal, custom_amount, custom_percentage]
+        expense_date:
+          type: string
+          format: date
+        payer:
+          type: object
+          required: [id, display_name]
+          properties:
+            id:
+              type: string
+              format: uuid
+            display_name:
+              type: string
+        logged_by:
+          type: object
+          required: [display_name]
+          properties:
+            display_name:
+              type: string
+        splits:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExpenseSplit"
+          minItems: 1
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ExpenseSummary:
+      type: object
+      description: Lightweight expense record for list view (no full splits array)
+      required:
+        - id
+        - description
+        - amount_cents
+        - amount_display
+        - currency
+        - split_type
+        - split_count
+        - payer_id
+        - payer_name
+        - logged_by_name
+        - expense_date
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        description:
+          type: string
+        amount_cents:
+          type: integer
+          minimum: 1
+        amount_display:
+          type: string
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        split_type:
+          type: string
+          enum: [equal, custom_amount, custom_percentage]
+        split_count:
+          type: integer
+          description: Number of members in this expense's split
+        payer_id:
+          type: string
+          format: uuid
+        payer_name:
+          type: string
+        logged_by_name:
+          type: string
+        expense_date:
+          type: string
+          format: date
+        created_at:
+          type: string
+          format: date-time
+
+    MemberBalance:
+      type: object
+      required:
+        - member_id
+        - display_name
+        - net_cents
+        - net_display
+        - paid_total_cents
+        - owed_total_cents
+        - settled_out_cents
+        - settled_in_cents
+        - status
+      properties:
+        member_id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+        net_cents:
+          type: integer
+          description: Net balance in integer cents. Positive = creditor, negative = debtor
+        net_display:
+          type: string
+          description: Formatted display string (e.g., "+$84.50" or "-$42.00")
+        paid_total_cents:
+          type: integer
+          minimum: 0
+          description: Total amount this member has paid (as payer) across all active expenses
+        owed_total_cents:
+          type: integer
+          minimum: 0
+          description: Total amount this member owes (from expense_splits)
+        settled_out_cents:
+          type: integer
+          minimum: 0
+          description: Total amount this member has paid in settlements
+        settled_in_cents:
+          type: integer
+          minimum: 0
+          description: Total amount this member has received in settlements
+        status:
+          type: string
+          enum: [creditor, debtor, settled]
+
+    MemberBalanceDetail:
+      allOf:
+        - $ref: "#/components/schemas/MemberBalance"
+        - type: object
+          required: [expense_count_paid, summary]
+          properties:
+            expense_count_paid:
+              type: integer
+              description: Number of expenses where this member was the payer
+            summary:
+              type: string
+              description: |
+                Human-readable one-sentence balance summary.
+                Example: "Maya paid $240.00 across 8 expenses. Her share was $155.50. Net: +$84.50."
+
+    BalancesResponse:
+      type: object
+      required: [currency, members, computed_at]
+      properties:
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+          description: The currency for which balances are computed
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/MemberBalance"
+          description: All members sorted by net_cents DESC (largest creditor first)
+        computed_at:
+          type: string
+          format: date-time
+
+    Transfer:
+      type: object
+      required:
+        - debtor_id
+        - debtor_name
+        - creditor_id
+        - creditor_name
+        - amount_cents
+        - amount_display
+        - currency
+      properties:
+        debtor_id:
+          type: string
+          format: uuid
+          description: The member who owes money (will pay)
+        debtor_name:
+          type: string
+        creditor_id:
+          type: string
+          format: uuid
+          description: The member who is owed money (will receive)
+        creditor_name:
+          type: string
+        amount_cents:
+          type: integer
+          minimum: 1
+          description: Transfer amount in integer cents
+        amount_display:
+          type: string
+          description: Formatted display string (e.g., "$42.00")
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+
+    SettleUpResponse:
+      type: object
+      required:
+        - group_name
+        - currency
+        - all_settled
+        - transfer_count
+        - transfers
+        - clipboard_text
+        - computed_at
+      properties:
+        group_name:
+          type: string
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        all_settled:
+          type: boolean
+          description: True if all net balances are zero — no transfers needed
+        transfer_count:
+          type: integer
+          minimum: 0
+        transfers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transfer"
+          description: |
+            Ordered list of transfers. Empty if all_settled is true.
+            Order: largest transfer first (by amount_cents DESC).
+        clipboard_text:
+          type: string
+          description: |
+            Pre-formatted plain text for copying to a group chat.
+            Format:
+              "FairSplit — {group_name} Settle-Up\n
+               • {debtor} pays {creditor} {amount_display} {currency}\n
+               ...\n
+               Powered by FairSplit: {group_url}"
+        computed_at:
+          type: string
+          format: date-time
+
+    Settlement:
+      type: object
+      required:
+        - id
+        - group_id
+        - payer_id
+        - payer_name
+        - payee_id
+        - payee_name
+        - amount_cents
+        - amount_display
+        - currency
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        group_id:
+          type: string
+          format: uuid
+        payer_id:
+          type: string
+          format: uuid
+          description: The member who paid (the debtor from the settle-up plan)
+        payer_name:
+          type: string
+        payee_id:
+          type: string
+          format: uuid
+          description: The member who received (the creditor from the settle-up plan)
+        payee_name:
+          type: string
+        amount_cents:
+          type: integer
+          minimum: 1
+        amount_display:
+          type: string
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        created_at:
+          type: string
+          format: date-time
+
+    CreateGroupRequest:
+      type: object
+      required: [name, admin_display_name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: Group name. Whitespace-only values are rejected.
+        description:
+          type: string
+          maxLength: 200
+          nullable: true
+        admin_display_name:
+          type: string
+          minLength: 1
+          maxLength: 40
+          description: Display name for the group creator (becomes the admin member)
+        default_currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+          default: "USD"
+
+    CreateGroupResponse:
+      type: object
+      required: [group, member, token]
+      properties:
+        group:
+          $ref: "#/components/schemas/Group"
+        member:
+          $ref: "#/components/schemas/Member"
+        token:
+          type: string
+          description: |
+            Signed JWT. Also set as an httpOnly cookie.
+            Store in localStorage as a read cache (not the authoritative store).
+            The cookie is the authoritative session store.
+
+    UpdateGroupRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+          nullable: true
+        description:
+          type: string
+          maxLength: 200
+          nullable: true
+        status:
+          type: string
+          enum: [active, archived]
+          nullable: true
+        force:
+          type: boolean
+          default: false
+          description: |
+            If true, archive the group even if some members have outstanding
+            balances. Default: false (returns 409 if balances are nonzero).
+
+    JoinGroupRequest:
+      type: object
+      required: [display_name]
+      properties:
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 40
+          description: |
+            Display name for the joining member.
+            If this name already exists in the group, the server appends " (2)",
+            " (3)", etc. The modified name is returned in the response.
+
+    JoinGroupResponse:
+      type: object
+      required: [group, member, token]
+      properties:
+        group:
+          type: object
+          required: [id, name, status, default_currency, member_count]
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            status:
+              type: string
+              enum: [active, archived]
+            default_currency:
+              type: string
+            member_count:
+              type: integer
+        member:
+          $ref: "#/components/schemas/Member"
+        token:
+          type: string
+          description: Signed JWT. Also set as an httpOnly cookie.
+
+    SplitInput:
+      type: object
+      required: [member_id]
+      properties:
+        member_id:
+          type: string
+          format: uuid
+        amount_cents:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: |
+            Required for split_type=custom_amount.
+            Ignored for split_type=equal (server computes equal shares).
+        percentage:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+          nullable: true
+          description: Required for split_type=custom_percentage.
+
+    CreateExpenseRequest:
+      type: object
+      required:
+        - description
+        - amount_cents
+        - payer_member_id
+        - split_type
+        - splits
+      properties:
+        description:
+          type: string
+          minLength: 1
+          maxLength: 200
+        amount_cents:
+          type: integer
+          minimum: 1
+          maximum: 99999999
+          description: |
+            Total expense amount in integer cents. Maximum: $999,999.99 (99,999,999 cents).
+            Client should convert from decimal display (e.g., "42.50" → 4250).
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+          default: "USD"
+        payer_member_id:
+          type: string
+          format: uuid
+          description: The member who paid. Does not need to be in the splits array.
+        split_type:
+          type: string
+          enum: [equal, custom_amount, custom_percentage]
+        expense_date:
+          type: string
+          format: date
+          description: Date of the expense. Defaults to today (server date) if not provided.
+          nullable: true
+        splits:
+          type: array
+          items:
+            $ref: "#/components/schemas/SplitInput"
+          minItems: 1
+          description: |
+            Members included in the split.
+            - equal: provide member_ids only; amount_cents and percentage are ignored.
+            - custom_amount: provide member_id + amount_cents for each member.
+              Sum of amount_cents MUST equal the top-level amount_cents.
+            - custom_percentage: provide member_id + percentage for each member.
+              Sum of percentages MUST equal 100.0.
+              Any 1-cent rounding remainder is assigned to the first member
+              alphabetically.
+
+    UpdateExpenseRequest:
+      type: object
+      description: All fields are optional. Only provided fields are updated.
+      properties:
+        description:
+          type: string
+          minLength: 1
+          maxLength: 200
+          nullable: true
+        amount_cents:
+          type: integer
+          minimum: 1
+          maximum: 99999999
+          nullable: true
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+          nullable: true
+        payer_member_id:
+          type: string
+          format: uuid
+          nullable: true
+        split_type:
+          type: string
+          enum: [equal, custom_amount, custom_percentage]
+          nullable: true
+        expense_date:
+          type: string
+          format: date
+          nullable: true
+        splits:
+          type: array
+          items:
+            $ref: "#/components/schemas/SplitInput"
+          minItems: 1
+          nullable: true
+          description: |
+            If provided, the full splits array must be provided.
+            Partial splits update is not supported.
+
+    CreateSettlementRequest:
+      type: object
+      required: [payer_member_id, payee_member_id, amount_cents, currency]
+      properties:
+        payer_member_id:
+          type: string
+          format: uuid
+          description: The member making the payment (the debtor)
+        payee_member_id:
+          type: string
+          format: uuid
+          description: The member receiving the payment (the creditor)
+        amount_cents:
+          type: integer
+          minimum: 1
+          description: Settlement amount in integer cents. Must equal the suggested transfer amount.
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, request_id]
+          properties:
+            code:
+              type: string
+              enum:
+                - VALIDATION_ERROR
+                - GROUP_NOT_FOUND
+                - MEMBER_NOT_FOUND
+                - EXPENSE_NOT_FOUND
+                - SETTLEMENT_NOT_FOUND
+                - INVALID_INVITE_TOKEN
+                - GROUP_ARCHIVED
+                - GROUP_HAS_OUTSTANDING_BALANCES
+                - PERMISSION_DENIED
+                - NO_SESSION
+                - SESSION_EXPIRED
+                - SESSION_INVALID
+                - MEMBER_WRONG_GROUP
+                - IDEMPOTENCY_CONFLICT
+                - SPLIT_SUM_MISMATCH
+                - RATE_LIMIT_EXCEEDED
+                - INTERNAL_ERROR
+            message:
+              type: string
+              description: Human-readable error description
+            field:
+              type: string
+              nullable: true
+              description: The specific field that failed validation (for VALIDATION_ERROR only)
+            request_id:
+              type: string
+              description: Unique request identifier for log correlation
