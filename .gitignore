@@ -1,5 +1,3 @@
-# ── Framework: generated project workspaces (examples, prototypes, generated code)
-workspace/*/
 
 # ── GitHub Actions workflows generated inside project workspaces (not the framework's own)
 workspace/*/.github/

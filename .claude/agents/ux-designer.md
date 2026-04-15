@@ -281,6 +281,18 @@ After completing both deliverables, write `workspace/{project}/handoffs/ux-desig
 - External service UI integrations: {list}
 ```
 
+After writing the handoff, append to `workspace/{project}/assumptions.md`:
+
+```markdown
+## ux-designer — {datetime}
+
+- **Persona prioritised:** {which persona drove design decisions — was this clearly specified or inferred?}
+- **Design patterns chosen:** {key patterns used — are these validated for this category or borrowed from analogues?}
+- **Navigation model:** {tab bar / sidebar / top nav — why this choice, and was it driven by the PRD or inferred?}
+- **Mobile-first vs desktop-first:** {which was assumed as primary and why}
+- **Interactive complexity:** {anything left out of the prototype that's in the spec — and why}
+```
+
 ## Quality Bar
 
 **design-spec.md:**

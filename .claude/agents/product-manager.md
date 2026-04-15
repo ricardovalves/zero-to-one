@@ -239,6 +239,19 @@ After writing the PRD, create `workspace/{project}/handoffs/product-manager.md`:
 - Data privacy considerations: {any PII, regulatory requirements}
 ```
 
+After writing the handoff, append to `workspace/{project}/assumptions.md`:
+
+```markdown
+## product-manager — {datetime}
+
+- **Primary persona:** {how confident — inferred from idea brief, or supported by research?}
+- **JTBD statement:** {validated by evidence, or a reasoned hypothesis?}
+- **Feature feasibility:** {were any must-have features assumed technically feasible without verification?}
+- **Pricing model:** {where did the pricing anchor come from — competitor data, assumption, or brief?}
+- **Out-of-scope decisions:** {any judgment calls that could reasonably have gone the other way?}
+- **Opportunity map:** {are the opportunities validated by user evidence, or inferred from the problem space?}
+```
+
 ## Quality Bar
 
 - Desired outcome is stated before any solution or feature is mentioned

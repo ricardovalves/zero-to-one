@@ -25,6 +25,53 @@ Record start time.
 
 ---
 
+### STEP 1b: Idea Sharpening — ask before anything runs
+
+Present all four questions at once. Do not launch any agent until you have the answers (or an explicit skip).
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Before we start — 4 quick questions to sharpen the analysis.
+Better input = better output from every agent.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Who is the primary user?
+   (e.g. "solo freelancers", "ops managers at mid-size SaaS companies")
+
+2. How are they solving this problem today?
+   (e.g. "spreadsheets + Slack", "a legacy tool they hate", "nothing — they just don't")
+
+3. What is the one thing the MVP must do — the core action?
+   (e.g. "track time and generate invoices", "match candidates to jobs in under 60 seconds")
+
+4. B2B or B2C? And rough monetisation idea?
+   (e.g. "B2B SaaS, ~$30/seat/month", "B2C freemium with a pro tier")
+
+Answer all four, or type "skip" to proceed with only the original idea.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+Wait for the user's response.
+
+After receiving answers (or "skip"), write `workspace/{project}/idea-brief.md`:
+
+```markdown
+# Idea Brief — {project}
+
+**Original idea:** {from $ARGUMENTS}
+**Primary user:** {answer or "not specified"}
+**Current solution:** {answer or "not specified"}
+**Core MVP action:** {answer or "not specified"}
+**Business model:** {answer or "not specified"}
+
+## Sharpened Brief
+
+{2–3 sentence synthesis of the above. Concrete, specific, no filler. This is the primary input for every downstream agent.}
+```
+
+All agents will read `idea-brief.md` as their primary context. The raw idea string from $ARGUMENTS is the fallback when idea-brief.md is not available.
+
+---
+
 ### STEP 2: Business Analysis [SEQUENTIAL — nothing to parallelize yet]
 
 **Launch:** `business-expert` agent
@@ -69,6 +116,14 @@ Full report: workspace/{project}/business-analysis.md
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
+If `workspace/{project}/assumptions.md` exists, append a summary beneath the report:
+
+```
+Key assumptions made so far:
+{list up to 5 bullets from assumptions.md — the most consequential ones}
+→ Full log: workspace/{project}/assumptions.md
+```
+
 **If NO-GO:** Stop here. Do NOT offer to continue. Present the risks and let the user decide.
 
 **If CONDITIONAL GO or GO:** Ask: *"Do you want to proceed to product definition and design? (yes / no / adjust idea)"*
@@ -100,6 +155,38 @@ Wait for completion. Read `workspace/{project}/handoffs/product-manager.md`.
 Wait for BOTH to complete before proceeding.
 
 Read: `workspace/{project}/handoffs/ux-designer.md` and `workspace/{project}/handoffs/cto-architect.md`
+
+---
+
+### STEP 4b: Contradiction Detection
+
+Before proceeding to project management, scan all four handoff files for contradictions. Look specifically for mismatches in these fields:
+
+| Field | Where to find it | What to compare |
+|---|---|---|
+| Target user | PM handoff (primary persona) | UX handoff (persona designed for) |
+| B2B vs B2C | Business expert handoff | UX handoff (design patterns chosen) |
+| Scale assumptions | Business expert (SOM, user count) | CTO handoff (infrastructure scale target) |
+| MVP scope | PM handoff (must-have features) | CTO handoff (what was architected) |
+| Real-time requirements | PM handoff | CTO handoff (architecture decisions) |
+| Out-of-scope items | PM handoff (explicit non-goals) | CTO handoff (anything built that shouldn't be) |
+
+If contradictions are found, present them before Gate 2:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONTRADICTIONS DETECTED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{For each contradiction:}
+⚠  {Field}: PM assumed {X}, but {agent} assumed {Y}
+   → Recommend: {which to trust and why, or ask user to clarify}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Resolve these before proceeding? (yes — I'll clarify / no — proceed anyway)
+```
+
+Wait for user response. If they clarify, update the relevant handoff files accordingly before continuing. If they say proceed, log the unresolved contradictions in `workspace/{project}/assumptions.md`.
+
+If no contradictions are found, continue silently.
 
 ---
 

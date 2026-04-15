@@ -105,6 +105,18 @@ Then write `workspace/{project}/handoffs/business-expert.md`:
 - Infrastructure budget at $1M ARR: ~${X}/month
 ```
 
+After writing the handoff, append to `workspace/{project}/assumptions.md` (create if it doesn't exist):
+
+```markdown
+## business-expert — {datetime}
+
+- **Market sizing method:** {top-down / bottom-up / both — and primary source used}
+- **Revenue model:** {assumed model and why — was it specified in the brief or inferred?}
+- **Target geography:** {assumed market region — stated or inferred from idea?}
+- **Competitor coverage:** {how confident is this list — well-known names only, or deeper research?}
+- **Any data estimated vs sourced:** {list figures that were reasoned rather than cited}
+```
+
 Quality bar:
 - Every number must have a source or explicit assumption
 - No vague language ("large market", "growing industry") — use specific figures

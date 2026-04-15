@@ -24,6 +24,49 @@ Derive project slug from $ARGUMENTS. Create `workspace/{project}/handoffs/`.
 
 ---
 
+### STEP 1b: Idea Sharpening
+
+Present all four questions at once before launching any agent:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Before we start — 4 quick questions to sharpen the analysis.
+Better input = better output from every agent.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Who is the primary user?
+   (e.g. "solo freelancers", "ops managers at mid-size SaaS companies")
+
+2. How are they solving this problem today?
+   (e.g. "spreadsheets + Slack", "a legacy tool they hate", "nothing — they just don't")
+
+3. What is the one thing the MVP must do — the core action?
+   (e.g. "track time and generate invoices", "match candidates to jobs in under 60 seconds")
+
+4. B2B or B2C? And rough monetisation idea?
+   (e.g. "B2B SaaS, ~$30/seat/month", "B2C freemium with a pro tier")
+
+Answer all four, or type "skip" to proceed with only the original idea.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+Wait for response. Then write `workspace/{project}/idea-brief.md`:
+
+```markdown
+# Idea Brief — {project}
+
+**Original idea:** {from $ARGUMENTS}
+**Primary user:** {answer or "not specified"}
+**Current solution:** {answer or "not specified"}
+**Core MVP action:** {answer or "not specified"}
+**Business model:** {answer or "not specified"}
+
+## Sharpened Brief
+
+{2–3 sentence synthesis. Concrete, specific, no filler.}
+```
+
+---
+
 ### STEP 2: Business Analysis [SEQUENTIAL]
 
 **Launch:** `business-expert`
@@ -65,6 +108,14 @@ Top Risks
 
 Full report: workspace/{project}/business-analysis.md
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+If `workspace/{project}/assumptions.md` exists, append a summary beneath the report:
+
+```
+Key assumptions made so far:
+{list up to 5 bullets from assumptions.md — the most consequential ones}
+→ Full log: workspace/{project}/assumptions.md
 ```
 
 **If NO-GO:** Stop here. Do NOT offer to continue. Present the risks clearly and let the user decide.

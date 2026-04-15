@@ -404,6 +404,7 @@ Add `slowapi` to `requirements.txt`.
 | "CPU-bound operations are fast enough to run directly in async handlers" | A slow synchronous operation (password hashing, image processing, heavy computation) blocks the entire event loop for every concurrent request for its full duration |
 | "I'll handle errors once we know the happy path works" | Error paths are where production systems fail; retrofitting error handling after the fact breaks tested happy paths |
 | "The types match so the contract is fine" | Types are compile-time; field names, envelope shapes, and list vs. singleton mismatches are runtime failures visible only in the browser |
+| `--log-config /dev/null` suppresses uvicorn logging | `/dev/null` is an empty file; `logging.config.fileConfig` raises `RuntimeError: is an empty file` and the process exits immediately. Use `--no-access-log` instead to suppress uvicorn's built-in access lines while letting the app's own structured logging middleware handle request logs. |
 
 ## Output
 
@@ -411,7 +412,8 @@ Write all backend code to `workspace/{project}/src/backend/`. Include:
 - Complete, runnable application code
 - Alembic migration for the initial schema
 - Dockerfile for containerization
-- `requirements.txt` and `requirements-dev.txt`
+- `requirements.txt` — **runtime only**: web framework, ORM, auth, observability, HTTP client. Nothing else.
+- `requirements-dev.txt` — starts with `-r requirements.txt`, then adds: pytest, pytest-asyncio, pytest-cov, ruff, pip-audit, mypy. CI tools and security scanners must never appear in `requirements.txt` — Docker installs only `requirements.txt` and will fail to build if it contains packages that require network access to external indexes in restricted environments (corporate proxies, air-gapped CI).
 - `.env.example` with all required environment variables documented
 
 Run tests before declaring done:

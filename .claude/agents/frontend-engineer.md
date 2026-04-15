@@ -354,6 +354,7 @@ Write all frontend code to `workspace/{project}/src/frontend/`. Include:
 - `package.json`, `tsconfig.json`, `next.config.ts`, `tailwind.config.ts`
 - `.env.local.example` with required environment variables
 - Dockerfile for containerization
+- `public/` directory — always create this, even if empty (add a `.gitkeep`). Next.js Dockerfiles always `COPY public/` and will fail to build if the directory is absent.
 
 Run quality checks before declaring done:
 ```bash

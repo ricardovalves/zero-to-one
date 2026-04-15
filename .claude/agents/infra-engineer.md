@@ -154,3 +154,5 @@ Write to:
 - Every secret documented in `.env.example`
 - Health check endpoint returns within 200ms
 - Rollback can be triggered with one command
+- **`docker compose build` must be run and must succeed before declaring the build complete.** A Dockerfile that fails to build is not a deliverable. Common failure modes to check: missing source directories referenced in `COPY` (e.g. `public/` in Next.js), packages in `requirements.txt` that don't belong in the Docker image (CI tools, security scanners), and `COPY` paths that assume files exist but were never created by the application engineer.
+- **Python venv path must be identical in builder and runner stages.** If you create the venv at `/build/.venv` in the builder but copy it to `/app/.venv` in the runner, the shebang lines inside scripts (`alembic`, `uvicorn`, etc.) still point to `/build/.venv/bin/python`, which does not exist in the runner — causing `exec: no such file or directory` at runtime. Always create the venv at the same absolute path that the runner will use (e.g. `uv venv /app/.venv` in the builder, `COPY --from=builder /app/.venv /app/.venv` in the runner).

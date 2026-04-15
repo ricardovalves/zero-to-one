@@ -1,8 +1,14 @@
 # Zero-to-One
 
-**Turn any idea into a validated, working MVP.**
+**A personal experiment in multi-agent AI orchestration.**
 
-Zero-to-One is a multi-agent framework built on [Claude Code](https://claude.ai/code) that simulates a complete startup. Give it an idea — it stress-tests it against the market, defines the product, designs and architects the system, then builds a working codebase. Two mandatory human gates prevent building the wrong thing: a viability check before any product work, and a full plan review before any code is written.
+I built this for fun — to explore what Claude Code can do when you push it beyond single tasks and into a full pipeline of coordinated agents. The idea: simulate a complete startup organization, from idea validation to working codebase, with each agent playing a specific role and handing off to the next through files.
+
+It's not a finished product and it won't work perfectly out of the box. Output quality varies by idea, by agent, and by how much you guide it. Think of it as a starting point to fork, adapt, and improve — not something you run once and ship.
+
+> **What it does:** takes an idea through market validation → product definition → UX + architecture → MVP codebase, with two human approval gates to keep things from going sideways.
+> 
+> **What it doesn't do:** guarantee quality output, replace real product thinking, or build production-ready code without iteration.
 
 ---
 
@@ -116,7 +122,35 @@ The two auto-generated `CLAUDE.md` files propagate decisions without repeating t
 
 ---
 
+## Example
+
+Here's a real prompt that was run through the full pipeline:
+
+```
+/startup "A shared expense tracker for friend groups, couples, and roommates
+who are tired of the mental overhead of 'who owes who what'. You create a
+group, add members, log expenses as you go — who paid, how much, and who
+it's split between — and the app keeps a running balance for everyone.
+One-tap settle-up suggestions show the minimum number of transfers needed
+to clear all debts. Free to use. No sign-up friction — create a group with
+a shareable link, members join without an account. B2C. Zero external
+dependencies."
+```
+
+What came out: business analysis (GO verdict, Splitwise as primary competitor), a full PRD with minimum-transfer algorithm as the hero feature, 8 HTML prototype screens, a complete technical spec with OpenAPI, Alembic migrations, a FastAPI backend, a Next.js 16 frontend, Docker Compose stack, and GitHub Actions CI/CD — all in one pipeline run with zero external accounts or API keys.
+
+Output lives in `workspace/fairsplit/`. Open `workspace/fairsplit/prototype/index.html` to see the prototype, or `cd workspace/fairsplit/src && docker compose up` to run the full stack.
+
+---
+
 ## How to Use
+
+**Start here if you're trying it for the first time:**
+```
+/ideate "your idea"          # Business analysis + PRD — the most reliable starting point
+```
+
+This runs the strategic phase only: market validation → product definition. It's faster, more focused, and gives you a clear GO / NO-GO before committing to the full pipeline. Once you're happy with the output, continue with `/design` and `/architect`, or jump straight to `/startup`.
 
 ### Full Pipeline (idea → working MVP)
 ```
@@ -126,11 +160,12 @@ The two auto-generated `CLAUDE.md` files propagate decisions without repeating t
 
 ### Individual Phases
 ```
-/ideate "your idea"          # Business analysis + PRD only
+/ideate "your idea"          # Business analysis + PRD only (recommended first step)
 /design <project>            # UX design spec + HTML prototype
 /architect <project>         # Technical architecture + API spec
 /build <project> [feature]   # Engineering pipeline
 /sprint <project>            # Plan next Linear sprint
+/refine <project> <doc>      # Improve a specific document based on feedback
 ```
 
 ### Quality Reviews
@@ -224,31 +259,28 @@ No other setup required. The full stack runs locally via Docker.
 
 ---
 
-## Roadmap
+## What's in here
 
-### Implemented
+### Currently built
 
-| Item | Status |
+| What | Notes |
 |---|---|
-| Business analysis → PRD → Design → Architecture pipeline | ✓ |
-| Parallel agent execution (UX + CTO, backend + frontend + infra) | ✓ |
-| Viability Gate + Plan & Milestones Gate | ✓ |
-| Project CLAUDE.md + src/CLAUDE.md auto-generation | ✓ |
-| Stripe billing agent (checkout, webhooks, plan gating) | ✓ |
-| Transactional email agent (Mailpit local, Resend prod) | ✓ |
-| PostHog analytics in frontend skeleton | ✓ |
-| HTTP security headers + global rate limiting | ✓ |
+| Business analysis → PRD → Design → Architecture pipeline | The strategic phase — generally the most reliable part |
+| Parallel agent execution (UX + CTO, backend + frontend + infra) | Agents run concurrently where possible |
+| Viability Gate + Plan & Milestones Gate | Two human checkpoints before work progresses |
+| Project CLAUDE.md + src/CLAUDE.md auto-generation | Context files that carry decisions between phases |
+| Stripe billing agent | Checkout, webhooks, plan gating |
+| Transactional email agent | Mailpit locally, Resend in production |
+| Smoke test loop with agent self-improvement | Catches the most common build failures before handoff |
+| Idea sharpening pre-step | 4 targeted questions before any agent runs — improves output quality across the board |
+| Contradiction detection | Scans agent handoffs for misaligned assumptions before build starts |
+| Assumption tracking | Every agent logs its assumptions to a shared file; surfaced at each human gate |
+| `/refine` command | Improve a specific document based on feedback without re-running the whole pipeline |
+| HTTP security headers + global rate limiting | Baked into the backend skeleton |
 
-### Planned
+### Things I'd like to explore next
 
-| Priority | Item | Notes |
-|---|---|---|
-| High | Social login / OAuth (Google) | Major B2B conversion driver; auth table restructure needed |
-| High | Landing page agent `/launch` | Static marketing site with pricing; pre-launch validation |
-| Medium | Customer feedback (Chatwoot) | Open-source Intercom; in-app widget + Docker service |
-| Medium | Feature flags (Unleash) | Open-source; controlled rollout and experiments |
-| Medium | Feedback-to-sprint loop | `/sprint` reads `workspace/{project}/feedback.md` from users |
-| Low | Mobile app path | React Native or Expo agent for consumer products |
-| Medium | `/deploy` command | One-command deploy to Fly.io: secrets, migrations, smoke tests, live URL |
-| Low | Multi-region deployment | Fly.io multi-region; only when customer data requires it |
-| Low | SSO / SAML | For enterprise sales; Boxyhq (open-source) |
+- `/deploy` — one-command deploy to Fly.io
+- Landing page agent — static marketing site generated from the PRD
+- Social login / OAuth support
+- A feedback loop where real user feedback feeds back into the sprint planner

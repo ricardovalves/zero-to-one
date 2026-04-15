@@ -319,6 +319,19 @@ Write `workspace/{project}/handoffs/cto-architect.md`:
 - Secrets: {list all required env vars}
 ```
 
+After writing the handoff, append to `workspace/{project}/assumptions.md`:
+
+```markdown
+## cto-architect — {datetime}
+
+- **Tech stack:** {was the stack specified in the brief, or chosen by the architect? any non-default choices?}
+- **Scale target:** {what user/request volume was assumed for architecture decisions — source?}
+- **Real-time requirements:** {assumed present or absent — based on what?}
+- **Data model complexity:** {any entities or relationships assumed beyond what the PRD specified?}
+- **Security posture:** {any security decisions that go beyond the brief — or any gaps left open?}
+- **Open technical questions:** {anything not decided — list from §11 of the spec}
+```
+
 ## Quality Bar
 
 - Zero stubs. Every section complete.

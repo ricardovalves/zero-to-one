@@ -52,7 +52,7 @@ Implement the database schema from the technical spec with correct normalization
 Apply these index rules:
 1. **Foreign key columns:** always indexed (`CREATE INDEX idx_{table}_{fk_col} ON {table}({fk_col})`)
 2. **Columns in WHERE clauses:** index columns used in frequent equality and range filters
-3. **Partial indexes:** for common filtered queries (`WHERE deleted_at IS NULL`, `WHERE status = 'active'`)
+3. **Partial indexes:** for common filtered queries (`WHERE deleted_at IS NULL`, `WHERE status = 'active'`). **Index predicates must use only IMMUTABLE functions.** `NOW()`, `CURRENT_TIMESTAMP`, and `random()` are VOLATILE — PostgreSQL will reject any partial index whose `WHERE` clause calls them with `functions in index predicate must be marked IMMUTABLE`. Use a plain index instead and let the query planner apply the volatile filter at runtime.
 4. **Composite indexes:** for multi-column filter/sort patterns — column order matters (equality first, range last)
 5. **Text search:** `pg_trgm` GIN index for LIKE queries; `tsvector` + `to_tsquery` for full-text search
 6. **No over-indexing:** every index costs write performance. Only add what queries need.
