@@ -99,6 +99,21 @@ Also produce a `SCHEMA.md` in `workspace/{project}/src/backend/` documenting:
 - Index rationale for each non-obvious index
 - Common query patterns and their expected execution plans
 
+## Slice-Scoped Implementation
+
+The build pipeline uses vertical slices. When invoked for a specific slice:
+
+| Slice | What you implement |
+|---|---|
+| Slice 0 (Infrastructure) | Alembic setup (`alembic.ini`, `env.py`, `migrations/` directory) — no application tables |
+| Slice 1 (Auth) | `users` table migration + `seed.py` with one test user per role (auth data only, no feature data yet) |
+| Slice 2 (Core Feature) | Core entity table migrations + **complete `seed.py`** with realistic feature data for every seeded user |
+| Slice N (Feature N) | Migration for that feature's tables only |
+
+**Do not write feature tables in the auth slice.** The schema grows incrementally — each slice adds only what its endpoints need.
+
+**Seed.py grows incrementally too:** After the auth slice, seed.py creates users and hashes passwords. After the core feature slice, seed.py is extended to add feature data. After each additional slice, extend seed.py further. The script is always idempotent — safe to re-run at any slice level.
+
 ## Seed Requirements
 
 `seed.py` is a first-class deliverable, not an afterthought. Every seed script must:
