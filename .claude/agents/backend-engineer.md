@@ -160,6 +160,24 @@ class ActivityItem(BaseModel):
       created_by: UserResponse = Field(validation_alias=AliasChoices("author", "created_by"))
   ```
 - **Eager-load every relationship level used in response serialization.** If a response accesses `item.author.avatar`, the query must chain `selectinload(Item.author)`. Missing a level causes a `MissingGreenlet` error in async context or silently returns `None`. Audit every response schema and ensure the repository loads the full required depth.
+- **Never call `db.commit()` or `db.rollback()` inside a service function passed the router's session.** A `commit()` expires all ORM objects in the session identity map (SQLAlchemy's default). Any subsequent attribute access on those objects (e.g. `h.ticker`) triggers a lazy reload → `MissingGreenlet` in async context. For write operations inside a service, use `async with db.begin_nested():` (SAVEPOINT) instead — it auto-commits on success and auto-rolls back on failure, without touching the outer transaction or expiring loaded objects.
+  ```python
+  # ❌ Corrupts caller's session — commits the whole transaction, expires all ORM objects:
+  async def _write_to_cache(db, data):
+      await db.execute(text("INSERT INTO cache ..."), {...})
+      await db.commit()  # ← expires every ORM object the router loaded
+  
+  # ✅ Savepoint — safe isolation within the shared session:
+  async def _write_to_cache(db, data):
+      try:
+          async with db.begin_nested():
+              await db.execute(text("INSERT INTO cache ..."), {...})
+      except Exception:
+          logger.warning("cache write failed", exc_info=True)
+  ```
+- **Raw SQL `text()` column names must exactly match the actual table schema.** A mismatch between the query (`last_fetched_at`) and the real column name (`fetched_at`) raises `UndefinedColumn` or silently returns `None`. Before writing any `text()` query, verify column names against the migration file or `\d tablename` in psql.
+- **String values inserted into columns with CHECK constraints must match exactly.** A `source = "yahoo_finance"` row fails a `CHECK (source IN ('yfinance', ...))` constraint with `CheckViolation`. The code-level constant and the DB constraint literal must be identical — cross-reference every enum-like string field in service code against the actual CHECK constraint in the migration.
+- **Avoid invalid type casts in raw SQL.** Casting with `::some_type` requires that type to exist in PostgreSQL. Using `::price_source` when only `asset_class_enum` is defined raises `ERROR: type "price_source" does not exist`. For plain text columns, omit the cast entirely. Use `::asset_class_enum` only when the column type is actually that enum.
 
 ### Known Python/FastAPI/asyncpg Gotchas (prevent before they happen)
 
@@ -222,6 +240,57 @@ FastAPI 0.115 enforces that `status_code=204` endpoints return no body. Returnin
 - Every router endpoint has at least: happy path, auth failure, and validation failure tests
 - Integration tests use a real test database (not mocks) — spin up with pytest fixture
 - Tests are isolated: each test runs in a transaction that is rolled back after
+
+### Pre-Declaration Integration Test (mandatory — do not skip)
+
+Unit tests alone are not enough. Before declaring the backend complete, bring up the real Docker stack, seed it, and verify the API is actually working against the real database. This catches migration errors, CHECK constraint mismatches, session handling bugs, and startup failures that pytest fixtures cannot see.
+
+```bash
+cd workspace/{project}/src
+
+# 1. Build and start the full stack
+docker compose up --build -d
+
+# 2. Wait for backend to be healthy (max 60s)
+for i in $(seq 1 12); do
+  STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health 2>/dev/null)
+  [ "$STATUS" = "200" ] && { echo "Backend healthy"; break; }
+  echo "Waiting... ($i/12)"; sleep 5
+done
+[ "$STATUS" != "200" ] && { echo "FAIL: backend never became healthy"; docker compose logs backend --tail=30; exit 1; }
+
+# 3. Seed data
+docker compose exec backend python seed.py
+
+# 4. Read actual credentials from seed.py (never hardcode)
+SEED_EMAIL=$(grep -oP "(?<=email['\"]:\s['\"])[^'\"]*" ../backend/seed.py | head -1)
+SEED_PASS=$(grep -oP "(?<=password['\"]:\s['\"])[^'\"]*" ../backend/seed.py | head -1)
+# If grep fails, set manually — but always read from seed.py, never guess
+[ -z "$SEED_EMAIL" ] && { echo "Could not parse seed.py — set SEED_EMAIL manually"; exit 1; }
+
+# 5. Login and capture cookie jar
+LOGIN=$(curl -s -c /tmp/smoke_cookies.txt -X POST "http://localhost:8000/api/v1/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d "{\"email\":\"$SEED_EMAIL\",\"password\":\"$SEED_PASS\"}")
+echo "Login response keys: $(echo $LOGIN | python3 -c "import sys,json; print(list(json.load(sys.stdin).keys()))")"
+
+# 6. Hit every non-parameterized GET endpoint — all must return 2xx, never 422 or 500
+for EP in $(python3 -c "
+import yaml
+spec = yaml.safe_load(open('../../api-spec.yaml'))
+print(' '.join(p for p,v in spec.get('paths',{}).items() if 'get' in v and '{' not in p))
+" 2>/dev/null); do
+  CODE=$(curl -s -o /dev/null -w "%{http_code}" -b /tmp/smoke_cookies.txt "http://localhost:8000$EP")
+  [[ "$CODE" =~ ^(200|201|204)$ ]] && echo "[PASS] GET $EP → $CODE" || echo "[FAIL] GET $EP → $CODE"
+done
+
+# 7. Check backend logs for ERROR-level entries
+ERR=$(docker compose logs backend 2>/dev/null | grep -c '"level":"ERROR"' || echo 0)
+[ "$ERR" -gt 0 ] && { echo "[FAIL] $ERR ERROR-level log entries:"; docker compose logs backend | grep '"level":"ERROR"' | tail -10; }
+[ "$ERR" -eq 0 ] && echo "[PASS] no ERROR-level log entries"
+```
+
+**If any step fails: diagnose using `docker compose logs backend --tail=50`, fix the root cause, and re-run.** Do not declare the backend done while any integration test step fails.
 
 ### Structured Logging (mandatory — every backend must have this)
 

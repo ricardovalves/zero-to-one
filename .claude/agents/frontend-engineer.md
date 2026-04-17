@@ -343,6 +343,7 @@ const form = useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema) });
 | "The nested access looks right — the API probably wraps the response" | HTTP client libraries often unwrap the HTTP body one level automatically; adding a second `.data` (or equivalent) only works if the API explicitly wraps responses in `{data: T}` — always check the actual response shape against the spec before assuming a wrapper exists |
 | "I'll add the empty state in a follow-up" | New users hit blank screens and assume the app is broken; empty states are the first impression for every new account |
 | "The TypeScript build passes so it's correct" | TypeScript checks types at compile time; runtime API shapes are only caught by running the app against the real backend |
+| "Auth endpoints return the User directly" | Auth endpoints almost always wrap the user in `{ user: User, access_token_expires_at: string }` or similar — never assume the envelope; always read the actual response before writing the return type |
 | "I'll handle the error case after the happy path ships" | Users who see an unhandled error lose trust immediately; error states are not optional UI |
 | "The loading spinner is good enough for now" | Spinners cause layout shift; skeleton UIs that match the loaded layout are the standard and take the same effort |
 
@@ -399,3 +400,102 @@ curl -s "$BASE/dashboard/summary" -H "Authorization: Bearer $TOKEN" | \
 ```
 
 **If any field is missing or nested differently than the hook expects, fix the hook — do not add a wrapper. The backend response shape is the authority; the hook must match it.**
+
+### Auth Endpoint Response Envelope (critical pattern)
+
+Auth endpoints (`/auth/login`, `/auth/register`) almost always wrap the user object rather than returning it directly:
+
+```json
+{ "user": { "id": "...", "email": "...", ... }, "access_token_expires_at": "..." }
+```
+
+Never type these as `Promise<User>` — always check the actual response. The correct pattern:
+
+```typescript
+export async function login(email: string, password: string): Promise<User> {
+  const res = await request<{ user: User; access_token_expires_at: string }>('/api/v1/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+  return res.user;  // ← unwrap before returning
+}
+```
+
+Failure to unwrap causes `user.email === undefined` in every component immediately after login. A page refresh appears to "fix" it because `getMe()` then fires with the correct cookie and overwrites the stored value — masking the root cause entirely.
+
+### Full Integration Test (mandatory before declaring done)
+
+**`curl` and TypeScript compilation are not enough.** The full integration test runs the actual stack in Docker and drives a real browser through the golden path. This is the only way to catch:
+- `TypeError: Cannot read properties of undefined` after login
+- Auth cookie not being sent on cross-origin requests
+- SWR fetching stale/wrong data due to API shape mismatches
+- Seeded users landing on a blank dashboard
+- Redirect loops on the login page
+
+Run this against the real running stack (if not already up: `docker compose up -d && docker compose exec backend python seed.py`):
+
+```bash
+# Install Playwright if not already present
+cd workspace/{project}/src/frontend
+npm install --save-dev playwright
+npx playwright install chromium --with-deps
+
+# Export seed credentials (read from seed.py — never hardcode)
+export SEED_EMAIL="<email from seed.py>"
+export SEED_PASS="<password from seed.py>"
+
+node -e "
+const { chromium } = require('playwright');
+(async () => {
+  const SEED_EMAIL = process.env.SEED_EMAIL;
+  const SEED_PASS  = process.env.SEED_PASS;
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  let pass = 0, fail = 0;
+
+  // 1. Login page loads
+  const res = await page.goto('http://localhost:3000/login');
+  (res?.ok()) ? (console.log('[PASS] login page loaded'), pass++) : (console.error('[FAIL] login page', res?.status()), fail++);
+  await page.waitForLoadState('networkidle').catch(() => {});
+
+  // Track errors only after login submit — 401 on getMe at login page mount is expected
+  const postLoginErrors = [];
+  page.on('pageerror', err => postLoginErrors.push(err.message));
+
+  // 2. Login and redirect
+  await page.fill('input[type=\"email\"]', SEED_EMAIL);
+  await page.fill('input[type=\"password\"]', SEED_PASS);
+  await page.click('button[type=\"submit\"]');
+  try {
+    await page.waitForURL('**/{dashboard,home,app,portfolio}*', { timeout: 10000 });
+    console.log('[PASS] redirected to', page.url()); pass++;
+  } catch {
+    console.error('[FAIL] no redirect after login — stuck at', page.url()); fail++;
+  }
+  await page.waitForLoadState('networkidle').catch(() => {});
+  await page.waitForTimeout(3000); // let SWR settle
+
+  // 3. No JS errors after login
+  if (!postLoginErrors.length) { console.log('[PASS] no JS errors'); pass++; }
+  else { console.error('[FAIL] JS errors:', postLoginErrors); fail++; }
+
+  // 4. Data is visible (seeded user should see content, not a blank screen)
+  const indicators = await page.evaluate(() =>
+    document.querySelectorAll('table tbody tr, [role=\"row\"], [class*=\"card\"]').length +
+    Array.from(document.querySelectorAll('p,span,td')).filter(el => /\\\$|\\d+(\\.\\d+)?%/.test(el.textContent||'')).length
+  );
+  if (indicators > 0) { console.log('[PASS] data visible on screen'); pass++; }
+  else {
+    await page.screenshot({ path: '/tmp/fe-smoke-fail.png', fullPage: true });
+    console.error('[FAIL] blank screen for seeded user — screenshot at /tmp/fe-smoke-fail.png'); fail++;
+  }
+
+  console.log('\\nBROWSER INTEGRATION TEST:', pass, 'passed,', fail, 'failed');
+  await browser.close();
+  process.exit(fail > 0 ? 1 : 0);
+})().catch(e => { console.error('Fatal:', e.message); process.exit(1); });
+"
+```
+
+**The frontend is not done until this passes.** A blank dashboard, a JS crash, or a stuck redirect are build failures — not future polish items. If the browser test fails, read `docker compose logs backend --tail=30` and check the `/tmp/fe-smoke-fail.png` screenshot before debugging the frontend.
+

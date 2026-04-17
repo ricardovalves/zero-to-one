@@ -143,3 +143,9 @@ Example output format:
 - Every query used by the API has a corresponding index
 - `EXPLAIN ANALYZE` output documented for the 5 most critical queries
 - Zero migration irreversibility (every `upgrade` has a working `downgrade`)
+- **`migrations/env.py` must add the backend root to `sys.path`** before importing any application models. Without this, `from app.models import Base` raises `ModuleNotFoundError: No module named 'app'` when Alembic runs inside Docker — because the migrations directory is not the same as the Python package root. Always include this block immediately after the stdlib imports:
+  ```python
+  import sys, os
+  sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+  ```
+  This makes `env.py` location-independent: it works whether Alembic is run from `/app`, `/app/migrations`, or a developer's local checkout.

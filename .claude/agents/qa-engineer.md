@@ -95,7 +95,15 @@ Use `pytest-asyncio` with `asyncio_mode = "auto"`. Use the existing `test_client
 it('should not export metadata from a use client component', () => { ... })
 ```
 
-## Integration Smoke Test (first-class mode — invoke after every build)
+## Integration Smoke Test (first-class mode — mandatory after every build)
+
+**The integration smoke test is the final gate before any build is declared complete.** Unit tests and linting verify correctness in isolation. Integration tests verify the running system behaves correctly end-to-end — including things `curl` alone cannot catch, like JavaScript crashes in the browser after login, blank dashboards for seeded users, or client–server contract mismatches.
+
+The test suite has two parts that must both pass:
+1. **API smoke tests** (curl) — backend is healthy, auth works, endpoints return data for seeded users
+2. **Browser smoke tests** (Playwright) — login page loads, login succeeds in a real browser, no JS errors, data is visible on screen
+
+
 
 When invoked for integration smoke testing, bring up the full stack and verify that the running system behaves correctly end-to-end. This catches contract drift between backend and frontend that unit tests cannot see.
 
@@ -229,17 +237,142 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 [ "$FAIL" -gt 0 ] && exit 1 || exit 0
 ```
 
-Write the parameterized script (with real credentials filled in from seed.py) to `workspace/{project}/src/scripts/smoke-test.sh` so it can be re-run at any time with `bash scripts/smoke-test.sh` from the `src/` directory.
-
 **Failure → Fix loop:** If any test fails, diagnose the root cause (check backend logs, compare api-spec.yaml response schema against actual response, compare seed.py status values against schema Literal types), fix it, re-run the failing test, confirm it passes before moving on.
+
+## Browser Integration Test (mandatory when a frontend exists)
+
+`curl` verifies that endpoints respond with the right status codes. It cannot verify:
+- Whether the browser actually receives and renders data
+- Whether a JavaScript `TypeError` crashes the page after login
+- Whether a seeded user sees a populated dashboard or a blank screen
+- Whether the auth cookie is actually set and sent on subsequent requests
+
+After the API smoke tests pass, run a Playwright browser test against the real running stack:
+
+```bash
+# Install Playwright (one-time — skip if already installed)
+cd workspace/{project}/src/frontend
+npm install --save-dev playwright
+npx playwright install chromium --with-deps
+
+# Run the browser integration test
+node -e "
+const { chromium } = require('playwright');
+(async () => {
+  const SEED_EMAIL = process.env.SEED_EMAIL;
+  const SEED_PASS  = process.env.SEED_PASS;
+  if (!SEED_EMAIL || !SEED_PASS) { console.error('Set SEED_EMAIL and SEED_PASS env vars'); process.exit(1); }
+
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  let pass = 0, fail = 0;
+
+  // Collect post-login JS errors only
+  const postLoginErrors = [];
+  const postLogin401s = [];
+
+  // ── TEST 1: Login page loads ───────────────────────────────────────────────
+  const loginResp = await page.goto('http://localhost:3000/login');
+  if (loginResp && loginResp.ok()) {
+    console.log('[PASS] login page loaded'); pass++;
+  } else {
+    console.error('[FAIL] login page HTTP error:', loginResp?.status()); fail++;
+  }
+  await page.waitForLoadState('networkidle').catch(() => {});
+
+  // ── TEST 2: Login succeeds and redirects ──────────────────────────────────
+  // Start tracking errors only after we submit login (login page 401s are expected)
+  page.on('pageerror', err => postLoginErrors.push(err.message));
+  page.on('response', res => { if (res.status() === 401) postLogin401s.push(res.url()); });
+
+  try {
+    await page.fill('input[type=\"email\"]', SEED_EMAIL);
+    await page.fill('input[type=\"password\"]', SEED_PASS);
+    await page.click('button[type=\"submit\"]');
+    await page.waitForURL('**/{dashboard,home,app,portfolio}*', { timeout: 10000 });
+    console.log('[PASS] login redirected to:', page.url()); pass++;
+  } catch (e) {
+    console.error('[FAIL] login did not redirect:', page.url()); fail++;
+  }
+
+  await page.waitForLoadState('networkidle').catch(() => {});
+  await page.waitForTimeout(3000); // allow SWR/data fetches to settle
+
+  // ── TEST 3: No JavaScript errors after login ──────────────────────────────
+  if (postLoginErrors.length === 0) {
+    console.log('[PASS] no JS errors after login'); pass++;
+  } else {
+    console.error('[FAIL] JS errors after login:');
+    postLoginErrors.forEach(e => console.error('  ', e)); fail++;
+  }
+
+  // ── TEST 4: No unexpected 401s after login ────────────────────────────────
+  // Filter out refresh attempts — one refresh attempt on startup is expected
+  const unexpectedAuths = postLogin401s.filter(u => !u.includes('/auth/me') && !u.includes('/auth/refresh'));
+  if (unexpectedAuths.length === 0) {
+    console.log('[PASS] no unexpected 401s after login'); pass++;
+  } else {
+    console.error('[FAIL] unexpected 401s:', unexpectedAuths); fail++;
+  }
+
+  // ── TEST 5: Data is visible (not a blank/empty screen) ───────────────────
+  // Look for common data indicators: tables, cards with numbers, list items
+  const hasData = await page.evaluate(() => {
+    const tables = document.querySelectorAll('table tbody tr, [role=\"row\"]').length;
+    const cards = document.querySelectorAll('[class*=\"card\"], [class*=\"panel\"]').length;
+    const numbers = Array.from(document.querySelectorAll('p, span, td'))
+      .filter(el => /\\\$|\\d+(\\.\\d+)?%/.test(el.textContent || '')).length;
+    return tables + cards + numbers;
+  });
+  if (hasData > 0) {
+    console.log('[PASS] data visible on screen (indicators:', hasData + ')'); pass++;
+  } else {
+    // Take a screenshot for debugging
+    await page.screenshot({ path: '/tmp/smoke-fail.png', fullPage: true });
+    console.error('[FAIL] dashboard appears blank — screenshot saved to /tmp/smoke-fail.png'); fail++;
+  }
+
+  console.log('');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('BROWSER SMOKE TEST:', pass, 'passed,', fail, 'failed');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+  await browser.close();
+  process.exit(fail > 0 ? 1 : 0);
+})().catch(e => { console.error('Fatal:', e.message); process.exit(1); });
+" 2>&1
+```
+
+Set env vars from seed.py before running:
+```bash
+export SEED_EMAIL="marcus@demo.example.app"  # read from seed.py
+export SEED_PASS="password123"               # read from seed.py
+```
+
+**The build is NOT complete until both the API smoke tests and the browser smoke test pass.** A blank dashboard for a seeded user, or a JS error after login, are build failures — not polish items.
+
+Write the complete smoke test (API + browser) to `workspace/{project}/src/scripts/smoke-test.sh` so it can be re-run at any time:
+
+```bash
+#!/usr/bin/env bash
+# Usage: bash scripts/smoke-test.sh
+# Runs the full integration suite: API smoke tests + Playwright browser tests.
+# Expects the stack to be running (docker compose up -d).
+# Reads credentials from seed.py — never hardcoded.
+set -euo pipefail
+cd "$(dirname "$0")/.."  # always run from src/ directory
+
+# ... (full API smoke test from above) ...
+# ... (full browser smoke test from above) ...
+```
 
 ## Docker / Config Test Standards
 
-Write shell-based smoke tests as a bash script `workspace/{project}/src/scripts/smoke-test.sh`:
-- Verify Docker images build without error
-- Verify required files exist at expected paths
-- Verify env var templates are complete
-- Verify alembic.ini is in the correct location
+Verify infrastructure correctness as part of the smoke test:
+- `docker compose config` validates the compose file
+- Verify required files exist at expected paths (`Dockerfile`, `alembic.ini`, `seed.py`)
+- Verify env var templates are complete (`.env.example` has all vars used in `config.py`)
+- Verify migrations run cleanly on a fresh database (`alembic upgrade head` exits 0)
 
 ## Common Shortcuts — and Why They Fail
 

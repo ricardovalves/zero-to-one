@@ -32,7 +32,7 @@ You are the **CEO** of a world-class AI-powered software company. Your role is t
 | `security-engineer` | OWASP Top 10, STRIDE threat modeling, auth review, dependency scanning | Every PR; every major feature |
 | `architecture-reviewer` | C4 compliance, NFR checks (scalability, availability, reliability), best practices | Every PR; after major architectural changes |
 | `pr-reviewer` | Code quality, SOLID principles, test coverage, documentation | Every PR |
-| `qa-engineer` | Regression tests for bugs found, integration test coverage, build/config smoke tests | After any bug is fixed; when test coverage has gaps |
+| `qa-engineer` | Full integration smoke test (API + Playwright browser), regression tests for bugs, coverage audits | **After every build** — mandatory; also after any bug fix or when coverage has gaps |
 
 ---
 
@@ -90,7 +90,22 @@ These are built into every agent's decision-making. Prefer these unless the proj
 7. **Every sample user has sample data.** Seeding users without associated data is incomplete. Every seeded user must land on a populated, functional screen when logged in — tasks assigned, projects joined, content authored, notifications present. A blank dashboard after login is a seed failure.
 8. **Empty state ≠ error.** A user with no data (new workspace, empty project) must see a proper empty/onboarding state — never an error message. API endpoints should return 200 + empty collection rather than 404 when the resource simply doesn't exist yet.
 9. **Structured logging is mandatory.** Every backend must emit structured JSON logs to stdout (never plain text). Every request must be logged with method, path, status, and duration. Every error must be logged with exc_info=True. Frontend hooks must log the full HTTP status and response body in every catch block. Diagnosable logs are not optional — they are what makes failures fixable in under 5 minutes.
-10. **Smoke tests gate every build.** After `docker compose up` + `seed.py`, login must succeed, the frontend must load, seeded users must see data (not blank screens), and authenticated GET endpoints must return 200. The build is not complete until all smoke tests pass. Do not hand off a build that has failing smoke tests.
+10. **Full integration tests gate every build — not just curl.** After `docker compose up --build` + `seed.py`, two test suites must pass before the build is declared complete:
+    - **API smoke tests (curl):** `/health` returns 200, login succeeds with seeded credentials, all non-parameterized GET endpoints return 2xx, no ERROR-level log entries in `docker compose logs backend`.
+    - **Browser integration tests (Playwright):** login page loads in a real browser, login redirects correctly, no JavaScript errors after login, seeded user sees data on screen (not a blank dashboard).
+    `curl` alone is insufficient — it cannot catch client-side JS crashes, blank dashboards, auth cookie failures, or SWR shape mismatches. Both suites must pass. Do not declare the build complete with any failing integration test.
+12. **The orchestrator must run the stack validation itself — not delegate it.** After all engineering agents complete, the orchestrator runs these commands directly using the Bash tool, fixes any failures before writing the execution report, and does not declare the build complete until all pass:
+    ```bash
+    cd workspace/{project}/src
+    docker compose down -v
+    docker compose up --build -d
+    # Poll /health up to 60s
+    # docker compose exec backend python seed.py
+    # curl smoke: /health → 200, login → 2xx with user in response, key GET endpoints → 2xx
+    # Playwright browser: login page loads, login redirects, no JS errors, data visible on screen
+    # docker compose logs backend → no ERROR-level entries
+    ```
+    Agents cannot run docker — only the orchestrator can. Delegating validation to agents and trusting their self-reported success is not acceptable. If validation fails, diagnose and fix before proceeding.
 11. **Framework self-improvement.** Any time a validation failure, smoke test failure, or integration bug is diagnosed and fixed during any build phase, the root cause pattern must be written back to the relevant agent file in `.claude/agents/` before declaring the build complete. Three rules for agent updates: (a) **generic** — describe the class of bug, not project-specific values or entity names; (b) **technology-agnostic** where possible — state the principle rather than the stack-specific implementation (e.g. "scope IDs must be auto-resolved server-side" rather than "workspace_id must be an optional FastAPI Query param"); (c) **integrated** — add the pattern into the existing relevant section of the agent file, not appended as a "lessons learned" block at the bottom. The framework gets smarter with every build. A handoff that found and fixed a systemic bug but did not update the agent file is an incomplete handoff.
 
 ---
