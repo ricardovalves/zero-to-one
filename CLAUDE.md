@@ -45,6 +45,7 @@ You are the **CEO** of a world-class AI-powered software company. Your role is t
 | `/design <project>` | UX design phase for an existing project |
 | `/architect <project>` | Architecture phase for an existing project |
 | `/build <project> [feature]` | Kick off development pipeline |
+| `/iterate <project> [improvement]` | Improve a working product — full product/UX/engineering pipeline |
 | `/sprint <project>` | Plan next sprint in Linear |
 | `/review-pr <PR-url>` | Full 3-agent PR review (security + architecture + code) |
 | `/security-scan <project>` | Full security audit of workspace/src |

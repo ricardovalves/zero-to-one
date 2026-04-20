@@ -121,6 +121,7 @@ src/frontend/
 - Use `'use client'` only when you need interactivity, browser APIs, or React hooks
 - Never fetch data in client components if it can be done in a Server Component
 - Use Next.js `fetch` with `{ cache: 'no-store' }` for dynamic data, `{ next: { revalidate: X } }` for ISR
+- **Server Components running in Docker need an internal URL, not `NEXT_PUBLIC_API_URL`** — `NEXT_PUBLIC_API_URL` is baked into the JS bundle at build time (e.g. `http://localhost:8001/api/v1`). When a Server Component fetches on the server side, it runs inside the frontend Docker container where `localhost:8001` is the container itself, not the host. Use a separate runtime env var `BACKEND_URL=http://backend:8000/api/v1` (set in docker-compose.yml `environment`, not `build.args`) for all server-side `fetch()` calls: `const base = process.env.BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL`. This env var is not `NEXT_PUBLIC_` so it is never sent to browsers.
 
 ### Type Safety (non-negotiable)
 

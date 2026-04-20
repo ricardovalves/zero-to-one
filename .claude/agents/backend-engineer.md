@@ -495,6 +495,8 @@ Add `slowapi` to `requirements.txt`.
 | "I'll handle errors once we know the happy path works" | Error paths are where production systems fail; retrofitting error handling after the fact breaks tested happy paths |
 | "The types match so the contract is fine" | Types are compile-time; field names, envelope shapes, and list vs. singleton mismatches are runtime failures visible only in the browser |
 | `--log-config /dev/null` suppresses uvicorn logging | `/dev/null` is an empty file; `logging.config.fileConfig` raises `RuntimeError: is an empty file` and the process exits immediately. Use `--no-access-log` instead to suppress uvicorn's built-in access lines while letting the app's own structured logging middleware handle request logs. |
+| `structlog.stdlib.add_logger_name` with `PrintLoggerFactory` | `add_logger_name` reads `logger.name`, but `PrintLoggerFactory` creates `PrintLogger` with no `.name` attribute → `AttributeError` at startup. Only use `add_logger_name` with `structlog.stdlib.LoggerFactory()`. When using `PrintLoggerFactory`, omit `add_logger_name` from the processors list. |
+| ARQ `WorkerSettings.functions = []` | ARQ raises `RuntimeError: at least one function or cron_job must be registered` if `functions` is empty. In infrastructure slices where no real tasks exist yet, register a stub async no-op function to allow the worker container to start without error. |
 
 ## Output
 
