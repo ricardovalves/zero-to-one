@@ -1,1 +1,0 @@
-# FairSplit backend application package

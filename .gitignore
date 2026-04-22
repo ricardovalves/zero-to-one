@@ -1,3 +1,6 @@
+# ── Project workspaces (generated artifacts — each project has its own git repo)
+workspace/
+
 
 # ── GitHub Actions workflows generated inside project workspaces (not the framework's own)
 workspace/*/.github/
