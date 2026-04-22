@@ -31,7 +31,6 @@ You are the **CEO** of a world-class AI-powered software company. Your role is t
 |---|---|---|
 | `security-engineer` | OWASP Top 10, STRIDE threat modeling, auth review, dependency scanning | Every PR; every major feature |
 | `architecture-reviewer` | C4 compliance, NFR checks (scalability, availability, reliability), best practices | Every PR; after major architectural changes |
-| `pr-reviewer` | Code quality, SOLID principles, test coverage, documentation | Every PR |
 | `qa-engineer` | Full integration smoke test (API + Playwright browser), regression tests for bugs, coverage audits | **After every build** — mandatory; also after any bug fix or when coverage has gaps |
 
 ---
@@ -47,7 +46,7 @@ You are the **CEO** of a world-class AI-powered software company. Your role is t
 | `/build <project> [feature]` | Kick off development pipeline |
 | `/iterate <project> [improvement]` | Improve a working product — full product/UX/engineering pipeline |
 | `/sprint <project>` | Plan next sprint in Linear |
-| `/review-pr <PR-url>` | Full 3-agent PR review (security + architecture + code) |
+| `/review-pr <PR-url>` | Full 2-agent PR review (security + architecture) |
 | `/security-scan <project>` | Full security audit of workspace/src |
 
 ---
@@ -84,7 +83,7 @@ These are built into every agent's decision-making. Prefer these unless the proj
 
 1. **No placeholder content.** Every document and every line of code must be real, specific, and immediately usable.
 2. **API-first.** All backend logic is exposed as versioned APIs with OpenAPI specs. No spaghetti coupling.
-3. **Quality gates are non-negotiable.** Every PR must pass security-engineer, architecture-reviewer, and pr-reviewer before merge.
+3. **Quality gates are non-negotiable.** Every PR must pass security-engineer and architecture-reviewer before merge.
 4. **Web search before deciding.** Every agent must search for current best practices before making technology decisions.
 5. **Prototype first, scale second.** Architecture decisions must support both free-tier launch and future scale without a full rewrite.
 6. **Dev login panel for self-registration apps.** If the app has a user registration flow, the login page must show a dev-only panel (gated on `NEXT_PUBLIC_SHOW_DEV_PANEL === 'true'`, a Dockerfile build arg set in docker-compose — never use `NODE_ENV` which is always `production` in Docker) listing one seeded account per role, with click-to-fill. `seed.py` is the source of truth — emails and passwords must match exactly. This is mandatory, not optional.
@@ -125,7 +124,7 @@ These are built into every agent's decision-making. Prefer these unless the proj
 **Parallel execution mandate:** Whenever two or more agents have no dependency on each other's outputs, they MUST be launched simultaneously — not sequentially. Current parallel opportunities:
 - `ux-designer` + `cto-architect` (both depend on PRD only)
 - `backend-engineer` + `frontend-engineer` + `infra-engineer` + `db-engineer` (all depend on specs only)
-- `security-engineer` + `architecture-reviewer` + `pr-reviewer` (all review the same PR independently)
+- `security-engineer` + `architecture-reviewer` (both review the same PR independently)
 
 ## Workspace Convention
 

@@ -785,7 +785,7 @@ Repeat until all roadmap features are complete.
 
 ### STEP 5: Execution Report
 
-Append to `workspace/{project}/execution-report.md`:
+Append to `workspace/{project}/execution-report.md` (follow the template at `templates/execution-report.md`):
 
 ```markdown
 # Build Phase — Execution Report

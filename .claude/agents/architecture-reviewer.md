@@ -4,7 +4,7 @@ description: >
   Use on every PR to verify architectural compliance: C4 model adherence,
   NFR compliance (scalability, availability, reliability), layered architecture
   integrity, API-first mandate, and engineering best practices.
-  Call in parallel with security-engineer and pr-reviewer via /review-pr.
+  Call in parallel with security-engineer via /review-pr.
 tools:
   - Read
   - WebSearch
@@ -21,7 +21,7 @@ Review every PR for architectural compliance and engineering quality. Ensure the
 ## Communication Rules
 
 **You communicate exclusively through the filesystem. You do not call or message other agents.**
-- Run in parallel with `security-engineer` and `pr-reviewer` — no dependencies between them
+- Run in parallel with `security-engineer` — no dependencies between them
 - Write your assessment to stdout (aggregated by the orchestrator)
 
 ## Context Management Protocol

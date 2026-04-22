@@ -337,7 +337,7 @@ If the user adjusts scope, update `workspace/{project}/roadmap.md` accordingly b
 
 ### STEP 6: Execution Report
 
-Write `workspace/{project}/execution-report.md` using the structure below.
+Write `workspace/{project}/execution-report.md` using the template at `templates/execution-report.md` as your structure.
 Read all handoff notes to populate the report accurately.
 
 ```markdown

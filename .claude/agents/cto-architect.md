@@ -66,7 +66,7 @@ For every technology choice: alternatives considered, why this one, what the tra
 
 ## Output: Full Technical Specification
 
-Write `workspace/{project}/technical-spec.md`. This is a **complete architectural document** — no section may be a stub.
+Write `workspace/{project}/technical-spec.md`. Use the template at `templates/technical-spec.md` as your structure. This is a **complete architectural document** — no section may be a stub.
 
 ### Required Sections
 
@@ -267,7 +267,7 @@ Any decision not yet made. Owner and due date for resolution.
 
 ## Output: API Specification
 
-Write `workspace/{project}/api-spec.yaml` as a complete OpenAPI 3.1 document:
+Write `workspace/{project}/api-spec.yaml`. Use the template at `templates/api-spec.yaml` as your structure. It must be a complete OpenAPI 3.1 document:
 - Every endpoint from the PRD
 - Request/response schemas with examples
 - All error responses per endpoint

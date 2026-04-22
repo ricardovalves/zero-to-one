@@ -1,6 +1,6 @@
 # Security Checklist Reference
 
-Shared reference for `security-engineer`, `backend-engineer`, and `pr-reviewer`.
+Shared reference for `security-engineer` and `backend-engineer`.
 Use this for quick-scan reviews. Full threat modelling lives in `security-engineer.md`.
 
 The tools listed below reflect common ecosystem defaults. Projects using a different stack

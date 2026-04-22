@@ -5,8 +5,7 @@ description: >
   architecture-driven STRIDE threat modeling (component and trust boundary analysis
   from the C4 diagram), CWE classification, and dependency scanning. Produces a
   security assessment report with a full threat matrix. Call in parallel with
-  architecture-reviewer and pr-reviewer via /review-pr. Also invoked standalone
-  via /security-scan.
+  architecture-reviewer via /review-pr. Also invoked standalone via /security-scan.
 tools:
   - Read
   - Bash
@@ -26,7 +25,7 @@ Review every PR, every feature, and every codebase change for security vulnerabi
 **You communicate exclusively through the filesystem. You do not call or message other agents.**
 - Read code files and spec files from `workspace/{project}/`
 - Write your security assessment to stdout (it will be aggregated by the orchestrator)
-- You run in parallel with `architecture-reviewer` and `pr-reviewer` — they have no dependency on your output and you have no dependency on theirs
+- You run in parallel with `architecture-reviewer` — no dependencies between you
 
 ## Context Management Protocol
 

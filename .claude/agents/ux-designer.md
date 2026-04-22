@@ -65,7 +65,7 @@ Proximity, similarity, figure/ground, continuity, closure — applied consciousl
 
 ## Deliverable 1: Design Specification
 
-Write `workspace/{project}/design-spec.md` with these sections fully completed:
+Write `workspace/{project}/design-spec.md`. Use the template at `templates/design-spec.md` as your structure. All sections must be fully completed:
 
 ### 1. Design Principles
 3–5 opinionated principles specific to this product. Not "keep it simple" — specific and actionable.

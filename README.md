@@ -33,7 +33,6 @@ It's not a finished product and it won't work perfectly out of the box. Output q
 ### Quality Gates (every PR)
 - **Security Engineer** — OWASP Top 10, STRIDE threat modeling, dependency scanning
 - **Architecture Reviewer** — C4 compliance, NFR checks, best practices
-- **PR Reviewer** — SOLID principles, test coverage, code quality
 - **QA Engineer** — Regression tests for bugs found, integration test coverage, smoke tests
 
 ---
@@ -93,10 +92,10 @@ engineer  engineer   engineer    engineer   engineer   engineer
                          │
                     workspace/{project}/src/
                          │
-              ┌──────────┼───────────┐   (parallel, every PR)
-              ▼          ▼           ▼
-          security   architect    pr-
-          engineer   reviewer    reviewer
+              ┌──────────┴───────────┐   (parallel, every PR)
+              ▼                     ▼
+          security             architect
+          engineer              reviewer
 ```
 
 ### How information flows between agents
@@ -170,7 +169,7 @@ This runs the strategic phase only: market validation → product definition. It
 
 ### Quality Reviews
 ```
-/review-pr <PR-url>          # Full 3-agent PR review (security + architecture + code)
+/review-pr <PR-url>          # Full 2-agent PR review (security + architecture)
 /security-scan <project>     # Full security audit of workspace/src
 ```
 
