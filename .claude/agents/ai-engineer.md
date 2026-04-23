@@ -26,7 +26,7 @@ Implement AI features as specified in the PRD and technical spec. Every AI featu
 - Read from `workspace/{project}/handoffs/*.md` and spec files
 - Write AI code to `workspace/{project}/src/backend/app/ai/`
 
-## Context Management Protocol
+## Input Reading Order
 
 1. Read `workspace/{project}/handoffs/product-manager.md` — which features are AI-powered (fast)
 2. Read `workspace/{project}/handoffs/cto-architect.md` — LLM provider choice, API keys pattern
@@ -114,6 +114,163 @@ async def stream_response(prompt: str):
             yield f"data: {json.dumps({'text': text})}\n\n"
     yield "data: [DONE]\n\n"
 ```
+
+### Context Window Management
+
+AI features fail silently at scale when context grows unchecked. Every AI feature must account for token budgets at design time, not as an afterthought.
+
+#### Agent self-management during long build tasks
+
+**80% threshold rule — offload before the window fills**
+
+When running a long build (e.g., implementing a full RAG pipeline), proactively write intermediate results to the filesystem when the context approaches ~80% capacity. Never wait for a hard context error.
+
+What to offload first (in priority order):
+1. Tool outputs >20,000 tokens — write to `workspace/{project}/tmp/` and keep only a path + 10-line preview in context
+2. Raw API responses and file contents that have already been read, processed, and acted on
+3. Detailed reasoning traces — summarize and write to a `progress.md` scratchpad; keep only the summary in context
+
+**Checkpoint at major step boundaries**
+
+After completing each major step (e.g., after setting up the vector store, after building the ingestion pipeline), write a checkpoint to `workspace/{project}/handoffs/ai-engineer-checkpoint.md` containing:
+- Steps completed and key decisions made
+- Absolute file paths of every file created or modified
+- Constraints and discovered requirements
+- Explicit next steps
+
+This enables clean resumption if context is exhausted or a new session starts.
+
+**Just-in-time loading**
+
+Never pre-load entire spec files. Load file identifiers and headers first; retrieve specific sections on demand. For files >500 lines, use `grep` to locate the relevant section before reading the full content.
+
+#### Building context-aware AI features for production
+
+**Explicit token budgets — partition the context window**
+
+Never let the context fill up by accident. Partition the model's window explicitly at design time:
+
+```python
+# For claude-sonnet-4-6 (200K window); adjust per model
+CONTEXT_BUDGET = {
+    "system_prompt":    2_000,   # reserved for system prompt
+    "conversation":    20_000,   # rolling conversation history
+    "retrieved_chunks": 40_000,  # RAG / retrieved context
+    "output":           4_000,   # max_tokens for model response
+    # Subtotal ~66K — safe headroom; scale up for longer tasks
+}
+
+def build_rag_context(query: str, history: list, chunks: list[str]) -> dict:
+    system = truncate_to_tokens(system_prompt, CONTEXT_BUDGET["system_prompt"])
+    trimmed_history = trim_to_budget(history, CONTEXT_BUDGET["conversation"])
+    trimmed_chunks = trim_to_budget(chunks, CONTEXT_BUDGET["retrieved_chunks"])
+    return {
+        "system": system,
+        "messages": trimmed_history + [build_user_message(query, trimmed_chunks)],
+        "max_tokens": CONTEXT_BUDGET["output"],
+    }
+```
+
+**Conversation history compaction (rolling window + summarization)**
+
+Cap conversation history before feeding it to the LLM. When total tokens exceed 80% of the window, summarize old turns with a cheap model and keep recent turns verbatim:
+
+```python
+COMPACTION_TRIGGER = 0.80
+
+def maybe_compact(history: list[dict], model_window: int = 200_000) -> list[dict]:
+    total = sum(estimate_tokens(m["content"]) for m in history)
+    if total < model_window * COMPACTION_TRIGGER:
+        return history
+
+    recent = history[-6:]          # always keep the last 3 exchanges intact
+    to_summarize = history[:-6]
+    if not to_summarize:
+        return history
+
+    summary = anthropic_client.messages.create(
+        model="claude-haiku-4-5-20251001",   # cheap model for compression
+        max_tokens=1024,
+        messages=[{
+            "role": "user",
+            "content": (
+                "Summarize this conversation concisely. Preserve: user intent, "
+                "decisions made, key facts, constraints, file paths. "
+                f"Discard: verbose tool outputs already acted on.\n\n{format_history(to_summarize)}"
+            ),
+        }],
+    ).content[0].text
+
+    return [{"role": "assistant", "content": f"[Earlier conversation summary: {summary}]"}] + recent
+```
+
+**Anthropic server-side compaction (best for long single-session chat features)**
+
+For long-running chat features on supported models, delegate context management to the API:
+
+```python
+response = anthropic_client.beta.messages.create(
+    betas=["compact-2026-01-12"],
+    model="claude-sonnet-4-6",
+    max_tokens=4096,
+    messages=messages,
+    context_management={
+        "edits": [{
+            "type": "compact_20260112",
+            "trigger": {"type": "input_tokens", "value": 150_000},
+            "instructions": (
+                "Preserve: user intent, all file paths, API endpoints, decisions made, "
+                "key constraints, variable and entity names. "
+                "Discard: verbose tool outputs already acted upon, raw data already "
+                "processed and stored to disk."
+            ),
+            "pause_after_compaction": False,
+        }]
+    },
+)
+# CRITICAL: always append the full response (including compaction block) to the messages array
+messages.append({"role": "assistant", "content": response.content})
+```
+
+Key parameters:
+- Default trigger: 150,000 input tokens. Minimum allowed: 50,000.
+- `instructions` replaces the default summarization prompt — bias it toward your domain (file paths, code, entity names).
+- `pause_after_compaction: true` pauses with `stop_reason="compaction"` so you can inject additional state before resuming — useful for checkpointing.
+- Supported models: claude-sonnet-4-6, claude-opus-4-6, claude-opus-4-7.
+
+**Large document processing — map-reduce, not full-context stuffing**
+
+Never stuff an entire document into a single LLM call. Use a map-reduce pattern:
+
+```python
+async def analyze_large_document(doc: str, question: str) -> str:
+    chunks = chunk_document(doc, max_tokens=8_000)
+
+    # Map: analyze each chunk with a focused call (runs in parallel)
+    summaries = await asyncio.gather(*[
+        call_llm(
+            model="claude-haiku-4-5-20251001",
+            prompt=f"From this section only, answer concisely: {question}\n\n{chunk}",
+        )
+        for chunk in chunks
+    ])
+
+    # Reduce: synthesize into a single answer
+    return await call_llm(
+        model="claude-sonnet-4-6",
+        prompt=(
+            f"Synthesize these section analyses to answer: {question}\n\n"
+            + "\n---\n".join(summaries)
+        ),
+    )
+```
+
+**Context rot — more tokens is not always better**
+
+Accuracy degrades as irrelevant context accumulates (context rot). Strategies:
+- Clear stale tool call results from message history once they are deep in history and the action has been taken.
+- Use XML tags or Markdown headers to structure system prompts into distinct, scannable sections — reduces model parsing overhead.
+- Tune compaction prompts starting from maximum recall (preserve everything), then iterate toward precision (eliminate the redundant). Never start with aggressive pruning.
 
 ### Evaluation & Testing
 - Every AI feature has an evaluation dataset (minimum 20 examples) stored in `tests/ai/evals/`
