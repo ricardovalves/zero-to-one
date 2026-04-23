@@ -27,7 +27,8 @@ Every slice follows this sequence. No exceptions.
 3. IMPLEMENT       — backend + frontend + db in parallel, each reading their contract
 4. COMPILE GATE    — ruff + py_compile + tsc --noEmit (no Docker needed, catches errors fast)
 5. BROWSER GATE    — Playwright confirms the feature works in a real browser
-6. COMMIT          — git commit after each passing gate (rollback points + clean diffs)
+5b. ARCH REVIEW    — architecture-reviewer checks the slice before code is committed
+6. COMMIT          — git commit only after arch review is APPROVED or APPROVED WITH SUGGESTIONS
 ```
 
 ### Practice 1: Slice Contracts
@@ -156,6 +157,7 @@ After every gate passes, the orchestrator writes a checkpoint. This is the orche
 ## Gate results
 - Compile: PASS ({N} tests, ruff clean, tsc clean)
 - Browser: PASS ({what was verified})
+- Arch review: {APPROVED / APPROVED WITH SUGGESTIONS} — details in slice-{N}-arch-review.md
 ```
 
 **Reading checkpoints:** At the start of each slice, run:
@@ -301,6 +303,11 @@ done
 echo "[PASS] Slice 0 gate: stack starts cleanly"
 ```
 
+**Architecture review gate:**
+> Invoke `architecture-reviewer`: "Slice 0 review — infrastructure only. Read `workspace/{project}/handoffs/cto-architect.md`. Review these files for architectural compliance: `workspace/{project}/src/docker-compose.yml`, all Dockerfiles, `workspace/{project}/src/backend/app/main.py`, `workspace/{project}/src/backend/app/config.py`, `workspace/{project}/src/backend/app/database.py`, `workspace/{project}/src/backend/app/middleware/` (if present), `workspace/{project}/src/frontend/src/lib/api.ts`. Focus on: 12-Factor compliance (no hardcoded config), correct CORS + security headers, structured logging middleware wired up, health endpoint returns correct shape, Docker service ordering and dependency checks. Write findings to `workspace/{project}/checkpoints/slice-0-arch-review.md`. Verdict required."
+
+If verdict is BLOCKED or CHANGES REQUESTED: fix all Critical findings, re-run compile gate, then proceed. Important findings are noted in the checkpoint but do not block the commit.
+
 **Git commit:**
 ```bash
 cd workspace/{project}/src && git add -A
@@ -333,6 +340,7 @@ cat > workspace/{project}/checkpoints/slice-0.md << EOF
 ## Gate results
 - Compile: PASS (docker build clean)
 - Browser: PASS (health 200, frontend responds)
+- Arch review: {APPROVED / APPROVED WITH SUGGESTIONS} — details in slice-0-arch-review.md
 EOF
 echo "[PASS] Slice 0 checkpoint written"
 ```
@@ -480,6 +488,11 @@ const { chromium } = require('playwright');
 "
 ```
 
+**Architecture review gate:**
+> Invoke `architecture-reviewer`: "Slice 1 review — auth. Read `workspace/{project}/slices/slice-1-backend.md` and `workspace/{project}/slices/slice-1-frontend.md` for scope. Read `workspace/{project}/handoffs/cto-architect.md` for the architectural contract. Review all files in `workspace/{project}/src/backend/app/` and `workspace/{project}/src/frontend/src/` that were written in this slice: auth router, auth service, auth repository (if present), JWT middleware, get_current_user dependency, login/register pages, AuthProvider, api.ts interceptor. Focus on: layer separation (no business logic in routers), JWT stored in httpOnly cookie (not localStorage), no hardcoded secrets, refresh/retry logic correct, 401 not causing infinite redirect loop on the login page itself. Write findings to `workspace/{project}/checkpoints/slice-1-arch-review.md`. Verdict required."
+
+If verdict is BLOCKED or CHANGES REQUESTED: fix all Critical findings, re-run compile gate, re-run browser gate, then proceed. Important findings go into the checkpoint.
+
 **After gate passes — generate TypeScript types from live OpenAPI:**
 ```bash
 echo "Generating types from live OpenAPI..."
@@ -530,6 +543,7 @@ cat > workspace/{project}/checkpoints/slice-1.md << EOF
 - Compile: PASS ({N} auth tests, ruff clean, tsc clean)
 - Browser: PASS (login, redirect, no JS errors, no unexpected 401s)
 - TypeScript types: generated from live OpenAPI → api-generated.ts
+- Arch review: {APPROVED / APPROVED WITH SUGGESTIONS} — details in slice-1-arch-review.md
 EOF
 echo "[PASS] Slice 1 checkpoint written"
 ```
@@ -670,6 +684,11 @@ const { chromium } = require('playwright');
 "
 ```
 
+**Architecture review gate:**
+> Invoke `architecture-reviewer`: "Slice 2 review — core feature. Read `workspace/{project}/slices/slice-2-backend.md` and `workspace/{project}/slices/slice-2-frontend.md` for scope. Read `workspace/{project}/handoffs/cto-architect.md`. Review all source files written in this slice (core resource router, service, repository, migrations, frontend list/detail pages). Focus on: router/service/repository layer separation, list endpoint returning `{data: T[], total, page, per_page}` (not a bare array), new user returns 200 + empty array (not 404), resources scoped to authenticated user (no cross-user data leaks), N+1 query patterns in list endpoints, missing indexes for the query patterns introduced, frontend unwrapping `response.data` correctly, no hand-written types (must use api-generated.ts). Write findings to `workspace/{project}/checkpoints/slice-2-arch-review.md`. Verdict required."
+
+If verdict is BLOCKED or CHANGES REQUESTED: fix all Critical findings, re-run compile gate, re-run browser gate, then proceed.
+
 **After gate passes — regenerate types** (new endpoints added):
 ```bash
 curl -s http://localhost:8000/openapi.json \
@@ -713,6 +732,7 @@ cat > workspace/{project}/checkpoints/slice-2.md << EOF
 - Compile: PASS ({N} tests, ruff clean, tsc clean)
 - Browser: PASS (seeded data visible, no JS errors)
 - TypeScript types: regenerated → api-generated.ts
+- Arch review: {APPROVED / APPROVED WITH SUGGESTIONS} — details in slice-2-arch-review.md
 EOF
 echo "[PASS] Slice 2 checkpoint written"
 ```
@@ -736,6 +756,11 @@ For each remaining feature from the roadmap, in priority order, apply the same 7
 **4. Compile gate** — ruff + tests + tsc
 
 **5. Browser gate** — login → navigate to feature page → no JS errors → feature functional
+
+**5b. Architecture review gate:**
+> Invoke `architecture-reviewer`: "Slice {N} review — {feature name}. Read `workspace/{project}/slices/slice-{N}-backend.md` and `workspace/{project}/slices/slice-{N}-frontend.md` for scope. Read `workspace/{project}/handoffs/cto-architect.md`. Review all source files written in this slice. Apply the full architectural checklist: layer separation, API contract compliance, NFR risks (N+1, missing indexes, missing retries on external calls), SOLID/DRY violations, hardcoded config, logging. Write findings to `workspace/{project}/checkpoints/slice-{N}-arch-review.md`. Verdict required."
+
+If verdict is BLOCKED or CHANGES REQUESTED: fix all Critical findings, re-run compile gate, re-run browser gate, then proceed. Important findings go into the checkpoint.
 
 **6. After gate passes:**
 ```bash
@@ -768,6 +793,7 @@ cat > workspace/{project}/checkpoints/slice-{N}.md << EOF
 ## Gate results
 - Compile: PASS ({N} tests, ruff clean, tsc clean)
 - Browser: PASS ({feature} functional, no JS errors)
+- Arch review: {APPROVED / APPROVED WITH SUGGESTIONS} — details in slice-{N}-arch-review.md
 EOF
 ```
 
