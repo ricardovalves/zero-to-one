@@ -105,7 +105,7 @@ Fix what is actually broken — not the symptom.
 
 ### Step 5 — Guard Against Recurrence
 
-Write a handoff note for the qa-engineer:
+Write a handoff note for the qa-engineer. **The "Regression Test Needed" section is mandatory — never omit it.** There is no bug so simple that it doesn't need a test. The absence of a test is what allowed this bug to exist in the first place.
 
 ```markdown
 # Debug Handoff → qa-engineer
@@ -120,11 +120,12 @@ Write a handoff note for the qa-engineer:
 - File: `{file}:{line}`
 - Change: {what was changed and why}
 
-## Regression Test Needed
-- Test: {what the test should assert}
-- Input: {the exact input that triggered the bug}
+## Regression Test Needed (mandatory)
+- Test name: {descriptive name for the test function}
+- Input: {the exact input that triggered the bug — be specific, not generic}
 - Expected: {what correct behaviour looks like}
-- Anti-pattern to encode: {the class of bug this test prevents}
+- Must fail without the fix: {confirm the test would have caught this bug before the fix}
+- Anti-pattern to encode: {the class of bug this test prevents — not just this one instance}
 ```
 
 The qa-engineer will write the test. Your job ends with the fix and the handoff.
@@ -159,6 +160,6 @@ Do not declare the bug fixed until Step 6 passes.
 ## Output
 
 1. Fix applied directly to the source file(s)
-2. Handoff written to `workspace/{project}/handoffs/debugging-and-error-recovery.md`
+2. Handoff written to `workspace/{project}/handoffs/debugging-and-error-recovery.md` — the "Regression Test Needed" section must be present and complete
 3. Verification confirmed (Step 6 output shown)
-4. Do NOT write the regression test — that is the qa-engineer's job via the handoff
+4. Do NOT write the regression test yourself — the qa-engineer writes it from your handoff. But your handoff must be specific enough that the qa-engineer can write a test that would have caught this bug.
