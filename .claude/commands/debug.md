@@ -25,22 +25,33 @@ Pass the full bug description and any error messages from the arguments. The age
 
 Wait for completion.
 
-### STEP 2: Launch qa-engineer for regression test
+### STEP 2: Launch qa-engineer for regression test (mandatory — never skip)
 
 Read `workspace/{project}/handoffs/debugging-and-error-recovery.md`.
 
-If the handoff includes a "Regression Test Needed" section:
+**Launch:** `qa-engineer` — unconditionally. Every bug fix requires a regression test. There are no exceptions.
 
-**Launch:** `qa-engineer`
-
-Pass the handoff note. The qa-engineer will write a regression test that:
-- Fails before the fix (encodes the bug)
-- Passes after the fix (verifies the fix)
-- Covers the full class of the bug, not just the exact reproduction
+Pass the full handoff note. The qa-engineer will write a regression test that:
+- Encodes the exact input that triggered the bug
+- Covers the full class of the bug, not just the exact reproduction case
+- Lives alongside the existing test suite so it runs on every future build
 
 Wait for completion.
 
-### STEP 3: Summary
+### STEP 3: Verify the regression test passes
+
+After the qa-engineer writes the test, run the full test suite to confirm:
+
+```bash
+# Run inside Docker where deps are installed
+docker compose exec backend pytest tests/ -x -q 2>&1 | tail -20
+```
+
+The new regression test must pass (the fix is already applied). If it fails, the test was written incorrectly — ask the qa-engineer to correct it before proceeding.
+
+A regression test that cannot run is not a regression test.
+
+### STEP 4: Summary
 
 ```
 /debug complete ✓
@@ -49,6 +60,7 @@ Project:    {project}
 Bug:        {one-line description}
 Root cause: {what was actually broken}
 Fix:        {file}:{line} — {what changed}
-Test:       {regression test file}
+Test:       {regression test file and test name}
+Result:     {N} tests passing, 0 failures
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
