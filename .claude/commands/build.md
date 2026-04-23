@@ -27,8 +27,8 @@ Every slice follows this sequence. No exceptions.
 3. IMPLEMENT       — backend + frontend + db in parallel, each reading their contract
 4. COMPILE GATE    — ruff + py_compile + tsc --noEmit (no Docker needed, catches errors fast)
 5. BROWSER GATE    — Playwright confirms the feature works in a real browser
-5b. ARCH REVIEW    — architecture-reviewer checks the slice before code is committed
-6. COMMIT          — git commit only after arch review is APPROVED or APPROVED WITH SUGGESTIONS
+5b. REVIEW GATE    — architecture-reviewer + security-engineer in PARALLEL, both must pass
+6. COMMIT          — git commit only after both reviewers pass
 ```
 
 ### Practice 1: Slice Contracts
@@ -158,6 +158,7 @@ After every gate passes, the orchestrator writes a checkpoint. This is the orche
 - Compile: PASS ({N} tests, ruff clean, tsc clean)
 - Browser: PASS ({what was verified})
 - Arch review: {APPROVED / APPROVED WITH SUGGESTIONS} — details in slice-{N}-arch-review.md
+- Security: {PASS / LOW findings only} — details in slice-{N}-security.md
 ```
 
 **Reading checkpoints:** At the start of each slice, run:
@@ -303,10 +304,15 @@ done
 echo "[PASS] Slice 0 gate: stack starts cleanly"
 ```
 
-**Architecture review gate:**
-> Invoke `architecture-reviewer`: "Slice 0 review — infrastructure only. Read `workspace/{project}/handoffs/cto-architect.md`. Review these files for architectural compliance: `workspace/{project}/src/docker-compose.yml`, all Dockerfiles, `workspace/{project}/src/backend/app/main.py`, `workspace/{project}/src/backend/app/config.py`, `workspace/{project}/src/backend/app/database.py`, `workspace/{project}/src/backend/app/middleware/` (if present), `workspace/{project}/src/frontend/src/lib/api.ts`. Focus on: 12-Factor compliance (no hardcoded config), correct CORS + security headers, structured logging middleware wired up, health endpoint returns correct shape, Docker service ordering and dependency checks. Write findings to `workspace/{project}/checkpoints/slice-0-arch-review.md`. Verdict required."
+**Review gate — PARALLEL (both must pass before commit):**
 
-If verdict is BLOCKED or CHANGES REQUESTED: fix all Critical findings, re-run compile gate, then proceed. Important findings are noted in the checkpoint but do not block the commit.
+Launch both agents simultaneously:
+
+> Invoke `architecture-reviewer`: "Slice 0 review — infrastructure only. Read `workspace/{project}/handoffs/cto-architect.md`. Review: `workspace/{project}/src/docker-compose.yml`, all Dockerfiles, `workspace/{project}/src/backend/app/main.py`, `workspace/{project}/src/backend/app/config.py`, `workspace/{project}/src/backend/app/database.py`, `workspace/{project}/src/backend/app/middleware/` (if present), `workspace/{project}/src/frontend/src/lib/api.ts`. Focus on: 12-Factor compliance (no hardcoded config), correct CORS + security headers, structured logging middleware wired up, health endpoint shape, Docker service ordering. Write findings to `workspace/{project}/checkpoints/slice-0-arch-review.md`. Verdict required."
+
+> Invoke `security-engineer`: "Slice 0 review — infrastructure only. This is the first slice so run the full STRIDE threat model in addition to the OWASP checklist. Read `workspace/{project}/handoffs/cto-architect.md` and `workspace/{project}/technical-spec.md` §1 and §5 for the C4 diagram and security NFRs. Review: `workspace/{project}/src/docker-compose.yml`, all Dockerfiles, `workspace/{project}/src/backend/app/main.py`, `workspace/{project}/src/backend/app/config.py`, `workspace/{project}/src/backend/app/middleware/` (if present). Focus on: no secrets in Docker env, CORS origins not wildcard, security headers present, debug mode off, structured logging excludes sensitive fields. Run `pip-audit` on `requirements.txt` and `npm audit` on `package.json`. Write findings to `workspace/{project}/checkpoints/slice-0-security.md`. Verdict required."
+
+Wait for both. If either returns BLOCKED or CHANGES REQUESTED (arch) / CRITICAL or HIGH (security): fix all blocking findings, re-run compile gate, then proceed. Non-blocking findings are noted in the checkpoint.
 
 **Git commit:**
 ```bash
@@ -341,6 +347,7 @@ cat > workspace/{project}/checkpoints/slice-0.md << EOF
 - Compile: PASS (docker build clean)
 - Browser: PASS (health 200, frontend responds)
 - Arch review: {APPROVED / APPROVED WITH SUGGESTIONS} — details in slice-0-arch-review.md
+- Security: {PASS / LOW findings only} — details in slice-0-security.md
 EOF
 echo "[PASS] Slice 0 checkpoint written"
 ```
@@ -488,10 +495,15 @@ const { chromium } = require('playwright');
 "
 ```
 
-**Architecture review gate:**
-> Invoke `architecture-reviewer`: "Slice 1 review — auth. Read `workspace/{project}/slices/slice-1-backend.md` and `workspace/{project}/slices/slice-1-frontend.md` for scope. Read `workspace/{project}/handoffs/cto-architect.md` for the architectural contract. Review all files in `workspace/{project}/src/backend/app/` and `workspace/{project}/src/frontend/src/` that were written in this slice: auth router, auth service, auth repository (if present), JWT middleware, get_current_user dependency, login/register pages, AuthProvider, api.ts interceptor. Focus on: layer separation (no business logic in routers), JWT stored in httpOnly cookie (not localStorage), no hardcoded secrets, refresh/retry logic correct, 401 not causing infinite redirect loop on the login page itself. Write findings to `workspace/{project}/checkpoints/slice-1-arch-review.md`. Verdict required."
+**Review gate — PARALLEL (both must pass before commit):**
 
-If verdict is BLOCKED or CHANGES REQUESTED: fix all Critical findings, re-run compile gate, re-run browser gate, then proceed. Important findings go into the checkpoint.
+Launch both agents simultaneously:
+
+> Invoke `architecture-reviewer`: "Slice 1 review — auth. Read `workspace/{project}/slices/slice-1-backend.md` and `workspace/{project}/slices/slice-1-frontend.md` for scope. Read `workspace/{project}/handoffs/cto-architect.md`. Review all files written in this slice: auth router, auth service, auth repository (if present), JWT middleware, get_current_user dependency, login/register pages, AuthProvider, api.ts interceptor. Focus on: layer separation (no business logic in routers), JWT stored in httpOnly cookie (not localStorage), no hardcoded secrets, refresh/retry logic correct, 401 not causing infinite redirect loop on the login page itself. Write findings to `workspace/{project}/checkpoints/slice-1-arch-review.md`. Verdict required."
+
+> Invoke `security-engineer`: "Slice 1 review — auth. This is the auth slice — apply rigorous security scrutiny. Read `workspace/{project}/slices/slice-1-backend.md` and `workspace/{project}/handoffs/cto-architect.md`. Review all auth files written in this slice. Focus on: passwords hashed with bcrypt/argon2 (never MD5/SHA1), JWT signature verified and algorithm pinned (no 'none' algorithm), access token in httpOnly cookie (not localStorage or response body), refresh token rotation implemented, login rate-limited (brute force protection), registration duplicate email returns 400 not 500, logout invalidates the session, GET /auth/me returns 401 without token (not 500), no stack traces in error responses, no PII in log statements. Scan any new packages added for CVEs. Write findings to `workspace/{project}/checkpoints/slice-1-security.md`. Verdict required."
+
+Wait for both. If either blocks: fix all blocking findings, re-run compile gate, re-run browser gate, then proceed.
 
 **After gate passes — generate TypeScript types from live OpenAPI:**
 ```bash
@@ -544,6 +556,7 @@ cat > workspace/{project}/checkpoints/slice-1.md << EOF
 - Browser: PASS (login, redirect, no JS errors, no unexpected 401s)
 - TypeScript types: generated from live OpenAPI → api-generated.ts
 - Arch review: {APPROVED / APPROVED WITH SUGGESTIONS} — details in slice-1-arch-review.md
+- Security: {PASS / LOW findings only} — details in slice-1-security.md
 EOF
 echo "[PASS] Slice 1 checkpoint written"
 ```
@@ -684,10 +697,15 @@ const { chromium } = require('playwright');
 "
 ```
 
-**Architecture review gate:**
+**Review gate — PARALLEL (both must pass before commit):**
+
+Launch both agents simultaneously:
+
 > Invoke `architecture-reviewer`: "Slice 2 review — core feature. Read `workspace/{project}/slices/slice-2-backend.md` and `workspace/{project}/slices/slice-2-frontend.md` for scope. Read `workspace/{project}/handoffs/cto-architect.md`. Review all source files written in this slice (core resource router, service, repository, migrations, frontend list/detail pages). Focus on: router/service/repository layer separation, list endpoint returning `{data: T[], total, page, per_page}` (not a bare array), new user returns 200 + empty array (not 404), resources scoped to authenticated user (no cross-user data leaks), N+1 query patterns in list endpoints, missing indexes for the query patterns introduced, frontend unwrapping `response.data` correctly, no hand-written types (must use api-generated.ts). Write findings to `workspace/{project}/checkpoints/slice-2-arch-review.md`. Verdict required."
 
-If verdict is BLOCKED or CHANGES REQUESTED: fix all Critical findings, re-run compile gate, re-run browser gate, then proceed.
+> Invoke `security-engineer`: "Slice 2 review — core feature. Read `workspace/{project}/slices/slice-2-backend.md` and `workspace/{project}/handoffs/cto-architect.md`. Review all source files written in this slice. Focus on: every new endpoint has `get_current_user` dependency (no unprotected routes), resource IDs validated to belong to the authenticated user (IDOR check — can user A access user B's resource by changing the ID?), no raw SQL string interpolation in queries, Pydantic validation on all request bodies, no sensitive fields returned in list responses (check for password hash, tokens, or internal IDs leaking), new packages scanned for CVEs. Write findings to `workspace/{project}/checkpoints/slice-2-security.md`. Verdict required."
+
+Wait for both. If either blocks: fix all blocking findings, re-run compile gate, re-run browser gate, then proceed.
 
 **After gate passes — regenerate types** (new endpoints added):
 ```bash
@@ -733,6 +751,7 @@ cat > workspace/{project}/checkpoints/slice-2.md << EOF
 - Browser: PASS (seeded data visible, no JS errors)
 - TypeScript types: regenerated → api-generated.ts
 - Arch review: {APPROVED / APPROVED WITH SUGGESTIONS} — details in slice-2-arch-review.md
+- Security: {PASS / LOW findings only} — details in slice-2-security.md
 EOF
 echo "[PASS] Slice 2 checkpoint written"
 ```
@@ -757,10 +776,15 @@ For each remaining feature from the roadmap, in priority order, apply the same 7
 
 **5. Browser gate** — login → navigate to feature page → no JS errors → feature functional
 
-**5b. Architecture review gate:**
+**5b. Review gate — PARALLEL (both must pass before commit):**
+
+Launch both agents simultaneously:
+
 > Invoke `architecture-reviewer`: "Slice {N} review — {feature name}. Read `workspace/{project}/slices/slice-{N}-backend.md` and `workspace/{project}/slices/slice-{N}-frontend.md` for scope. Read `workspace/{project}/handoffs/cto-architect.md`. Review all source files written in this slice. Apply the full architectural checklist: layer separation, API contract compliance, NFR risks (N+1, missing indexes, missing retries on external calls), SOLID/DRY violations, hardcoded config, logging. Write findings to `workspace/{project}/checkpoints/slice-{N}-arch-review.md`. Verdict required."
 
-If verdict is BLOCKED or CHANGES REQUESTED: fix all Critical findings, re-run compile gate, re-run browser gate, then proceed. Important findings go into the checkpoint.
+> Invoke `security-engineer`: "Slice {N} review — {feature name}. Read `workspace/{project}/slices/slice-{N}-backend.md` and `workspace/{project}/handoffs/cto-architect.md`. Review all source files written in this slice. Apply the slice security checklist: every new endpoint has auth dependency, resource IDs validated to authenticated user (IDOR), no raw SQL interpolation, Pydantic validation on all inputs, no sensitive fields leaking in responses, external calls have timeout and response size limit, any new packages scanned for CVEs. Write findings to `workspace/{project}/checkpoints/slice-{N}-security.md`. Verdict required."
+
+Wait for both. If either blocks: fix all blocking findings, re-run compile gate, re-run browser gate, then proceed. Non-blocking findings go into the checkpoint.
 
 **6. After gate passes:**
 ```bash
@@ -794,6 +818,7 @@ cat > workspace/{project}/checkpoints/slice-{N}.md << EOF
 - Compile: PASS ({N} tests, ruff clean, tsc clean)
 - Browser: PASS ({feature} functional, no JS errors)
 - Arch review: {APPROVED / APPROVED WITH SUGGESTIONS} — details in slice-{N}-arch-review.md
+- Security: {PASS / LOW findings only} — details in slice-{N}-security.md
 EOF
 ```
 
@@ -835,6 +860,102 @@ Append to `workspace/{project}/execution-report.md` (follow the template at `tem
 {Each systemic pattern: file, section, rule added.}
 ```
 
+### STEP 5a: Simplification Pass
+
+Run after all slices are complete and the execution report is written. The goal is to reduce complexity without changing behaviour. A full safety gate runs after the agent finishes — if anything breaks, the changes are reverted automatically.
+
+**Pre-simplification baseline:**
+```bash
+cd workspace/{project}/src
+
+# Snapshot the SHA — this is the rollback point
+PRE_SIMPLIFY_SHA=$(git rev-parse HEAD)
+echo "[INFO] Pre-simplification SHA: $PRE_SIMPLIFY_SHA"
+
+# Confirm baseline is clean before handing off to the agent
+docker compose exec backend pytest tests/ -q 2>&1 | tail -5
+```
+
+If the baseline test run has failures, **skip simplification** — note it in the execution report and proceed to STEP 5b. Simplifying a broken baseline makes it impossible to distinguish new regressions from pre-existing ones.
+
+**Launch `code-simplification` agent:**
+
+> Invoke `code-simplification`: "Simplify the codebase at `workspace/{project}/src/`. Read `workspace/{project}/src/CLAUDE.md` for the test command and project layout. Apply simplification patterns one at a time — guard clauses, function extraction, nesting flattening, deduplication — running the full test suite after each individual change. Stop immediately if any test fails after a change and revert that single change before continuing. Do not simplify test files. Write your report to `workspace/{project}/handoffs/code-simplification.md`."
+
+Wait for completion.
+
+**Post-simplification safety gate (orchestrator runs this directly):**
+```bash
+cd workspace/{project}/src
+
+# 1. Compile gate — catches any syntax or type errors introduced
+docker compose exec backend bash -c "
+  ruff check app/ --quiet && echo '[PASS] ruff' || { echo '[FAIL] ruff after simplify'; exit 1; }
+  python -m compileall app/ -q && echo '[PASS] py_compile' || { echo '[FAIL] syntax after simplify'; exit 1; }
+"
+docker compose exec frontend bash -c "
+  npx tsc --noEmit --pretty 2>&1 | tail -10 && echo '[PASS] TypeScript' || { echo '[FAIL] TS errors after simplify'; exit 1; }
+"
+
+# 2. Full test suite — agent tests after each change, but this is the final confirmation
+docker compose exec backend pytest tests/ -q 2>&1 | tail -10 \
+  && echo '[PASS] all tests after simplify' || { echo '[FAIL] test regression after simplify'; exit 1; }
+
+# 3. Browser smoke — the agent only runs pytest; this catches client-side regressions
+SEED_EMAIL=$(grep -oE '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' backend/seed.py | head -1)
+node -e "
+const { chromium } = require('playwright');
+(async () => {
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  let pass = 0, fail = 0;
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto('http://localhost:3000/login');
+  await page.waitForLoadState('networkidle').catch(() => {});
+  await page.fill('input[type=\"email\"]', '$SEED_EMAIL');
+  await page.fill('input[type=\"password\"]', 'password123');
+  await page.click('button[type=\"submit\"]');
+  try { await page.waitForURL(u => !u.includes('/login'), { timeout: 10000 }); pass++; }
+  catch { console.error('[FAIL] no redirect after simplify'); fail++; }
+  await page.waitForLoadState('networkidle').catch(() => {});
+  await page.waitForTimeout(2000);
+  errors.length === 0
+    ? (console.log('[PASS] no JS errors after simplify'), pass++)
+    : (console.error('[FAIL] JS errors after simplify:', errors), fail++);
+  console.log('SIMPLIFY BROWSER GATE:', pass, 'passed,', fail, 'failed');
+  await browser.close();
+  process.exit(fail > 0 ? 1 : 0);
+})().catch(e => { console.error(e.message); process.exit(1); });
+" && echo '[PASS] browser smoke after simplify'
+```
+
+**If any post-simplification gate fails — auto-revert:**
+```bash
+echo "[WARN] Simplification broke the app — reverting to $PRE_SIMPLIFY_SHA"
+git reset --hard $PRE_SIMPLIFY_SHA
+
+# Rebuild containers with the original code
+docker compose up --build -d
+
+# Confirm recovery
+for i in $(seq 1 12); do
+  CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health 2>/dev/null)
+  [ "$CODE" = "200" ] && { echo "[PASS] stack recovered after revert"; break; }
+  sleep 5
+done
+echo "[INFO] Simplification skipped — pre-simplification code restored. Check handoffs/code-simplification.md for what was attempted."
+```
+
+**If all gates pass — commit the simplification separately:**
+```bash
+git add -A
+git commit -m "simplify: post-build complexity reduction — see handoffs/code-simplification.md"
+echo "[PASS] Simplification committed cleanly"
+```
+
+Keeping the simplification as its own commit means `git revert HEAD` instantly undoes it if a production issue is ever traced back here.
+
 ### STEP 5b: Generate src/CLAUDE.md
 
 From actual generated content — real credentials from seed.py, real enum values from schemas, real git log. No placeholders.
@@ -867,11 +988,12 @@ If regression found: `git log --oneline` → `git diff {sha}..HEAD` to identify 
 ```
 /build complete ✓
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Project:  {project}
-Slices:   {N} built, all gates passed
-Tests:    {N} written before implementation
-Commits:  {N} slice commits (git log --oneline)
-Bugs:     {N} caught at gates, fixed in small diffs
+Project:   {project}
+Slices:    {N} built, all gates passed
+Tests:     {N} written before implementation
+Commits:   {N} slice commits + 1 simplification commit
+Bugs:      {N} caught at gates, fixed in small diffs
+Simplified:{N} files, -{N} lines net (or: skipped — baseline had failures)
 
   cd workspace/{project}/src && docker compose up
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

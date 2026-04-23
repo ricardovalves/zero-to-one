@@ -109,6 +109,77 @@ Table: interaction, trigger, behavior, duration (ms), easing function.
 ### 6. Accessibility Compliance
 ARIA implementation for every interactive element. Keyboard map (key → action). Color contrast verification table. Focus order for every screen.
 
+### 7. Email Design System (include if the product sends any transactional email)
+
+Email clients strip external CSS and most `<style>` tags — all styling must be inline. Define a constrained, email-safe subset of the design system that the email-engineer can apply as inline styles.
+
+**Brand colors for email (derive from the main color palette):**
+| Token | Hex | Usage in email |
+|---|---|---|
+| `email-bg` | {hex} | Email body background (neutral, near-white) |
+| `email-surface` | {hex} | Card/container background |
+| `email-primary` | {hex} | CTA button background, links |
+| `email-primary-dark` | {hex} | CTA button hover (mention only — most clients ignore hover) |
+| `email-text` | {hex} | Body text |
+| `email-text-muted` | {hex} | Footer text, secondary copy |
+| `email-border` | {hex} | Dividers, container borders |
+
+**Email-safe font stack:**
+```
+font-family: {system font or web-safe font}, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+```
+Only use Google Fonts in email if the email-engineer confirms the target clients support them (most don't render web fonts reliably). Default to system fonts.
+
+**Layout spec:**
+- Max width: 600px centered (works in all clients)
+- Container padding: 40px top/bottom, 32px left/right
+- Header: logo + product name, `email-primary` background or white with colored accent
+- Body: white background, 16px body text, 24px line-height
+- CTA button: `email-primary` background, white text, 8px border-radius, 16px vertical padding, 32px horizontal padding, no border (use background-color only)
+- Footer: `email-text-muted` at 12px, unsubscribe link for marketing emails, legal address
+
+**Email templates to spec (one wireframe per template the product sends):**
+
+For each template, define:
+- Subject line formula (e.g., "Confirm your {ProductName} account")
+- Header treatment (logo only, or logo + accent color bar)
+- Headline text (example)
+- Body copy (1-3 sentences — short, scannable)
+- CTA button label and destination
+- Footer content
+
+Minimum required templates (skip templates the product does not send):
+| Template | Subject formula | Headline | CTA |
+|---|---|---|---|
+| Email verification | Confirm your {Product} account | You're almost in. | Verify my email |
+| Password reset | Reset your {Product} password | Reset your password | Reset password |
+| Welcome | Welcome to {Product} | You're in. Here's where to start. | Get started |
+| Invitation | {Name} invited you to {Product} | You've been invited | Accept invitation |
+| Billing confirmation | Your {Product} subscription is active | You're all set. | View billing |
+
+**Email wireframe format (ASCII):**
+```
+┌─────────────────────────────────┐
+│  [LOGO]  Product Name           │  ← header: email-primary bg or white
+├─────────────────────────────────┤
+│                                 │
+│  Headline text here             │  ← 24px bold, email-text
+│                                 │
+│  Body copy sentence one.        │  ← 16px, email-text, 1.5 line-height
+│  Body copy sentence two.        │
+│                                 │
+│  ┌─────────────────────────┐    │
+│  │      CTA Button         │    │  ← email-primary bg, white text
+│  └─────────────────────────┘    │
+│                                 │
+│  Secondary link or note         │  ← 14px, email-text-muted
+│                                 │
+├─────────────────────────────────┤
+│  © {Year} {Product}             │  ← footer: email-text-muted, 12px
+│  Unsubscribe · Privacy Policy   │
+└─────────────────────────────────┘
+```
+
 ---
 
 ## Deliverable 2: Working HTML Prototype
@@ -154,8 +225,11 @@ workspace/{project}/prototype/
 ├── dashboard.html      ← Main authenticated view
 ├── {feature}.html      ← Key feature screen (one per major epic)
 ├── empty.html          ← Empty state demonstration
+├── emails.html         ← Email template previews (all templates side by side, if product sends email)
 └── tailwind.config.js  ← Theme configuration (for reference — embedded in each page)
 ```
+
+**`emails.html`** — a single page showing every email template rendered at 600px width, using the email design system tokens (inline styles, not Tailwind classes). This is the visual reference the email-engineer implements from. Include both the template name and a realistic preview of the content for each template.
 
 ### Prototype HTML Template
 
@@ -274,6 +348,16 @@ After completing both deliverables, write `workspace/{project}/handoffs/ux-desig
 - Tailwind config in each prototype file is the source of truth for design tokens
 - shadcn/ui recommended for production components; prototype uses pure Tailwind
 - Custom interactions: {list any non-standard patterns used}
+
+## For Email Engineer
+- Email design system is in `design-spec.md §7` — use these tokens as inline styles (not Tailwind)
+- Email preview prototype: `workspace/{project}/prototype/emails.html` — implement every template to match this visual reference
+- Brand colors for email: primary={hex}, bg={hex}, surface={hex}, text={hex}, text-muted={hex}, border={hex}
+- Font stack: {exact font-family string — email-safe}
+- CTA button spec: background={hex}, color=white, border-radius=8px, padding=16px 32px, no border
+- Header treatment: {logo only / logo + color bar — describe exactly}
+- Max container width: 600px
+- Templates to implement: {list each template name from §7}
 
 ## For CTO/Architect
 - Real-time features needed: {list}
