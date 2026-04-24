@@ -158,6 +158,105 @@ async function apiClient<T>(path: string, options?: RequestInit): Promise<T> {
 - **Fonts:** `next/font` with display: swap, preloaded
 - **Bundle:** No unnecessary client-side JS — maximize Server Components
 
+### SEO (Next.js App Router — not a traditional SPA)
+
+Next.js App Router renders HTML on the server via React Server Components. Crawlers receive real content — the classic SPA SEO problem (blank `<div id="root">`) does not apply. What does matter is correct metadata, crawlability, and structured data.
+
+**Metadata API (mandatory for every route with public-facing content):**
+
+```typescript
+// app/layout.tsx — site-wide defaults
+export const metadata: Metadata = {
+  title: { default: '{Product Name}', template: '%s — {Product Name}' },
+  description: '{one-sentence product description}',
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
+  openGraph: {
+    type: 'website',
+    siteName: '{Product Name}',
+    images: [{ url: '/og-default.png', width: 1200, height: 630 }],
+  },
+  twitter: { card: 'summary_large_image' },
+}
+
+// app/(marketing)/pricing/page.tsx — page-level override
+export const metadata: Metadata = {
+  title: 'Pricing',          // renders as "Pricing — {Product Name}"
+  description: 'Simple, transparent pricing that scales with your team.',
+  openGraph: { title: 'Pricing — {Product Name}', description: '...' },
+}
+```
+
+**When to add metadata:**
+- Every public-facing page (landing, pricing, about, blog) — full metadata required
+- Authenticated dashboard pages — `<title>` only (crawlers can't access them anyway)
+- Dynamic routes (e.g. `/blog/[slug]`) — generate metadata from the content
+
+```typescript
+// Dynamic route — generate from content
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const post = await getPost(params.slug)
+  return {
+    title: post.title,
+    description: post.excerpt,
+    openGraph: { images: [{ url: post.coverImage }] },
+  }
+}
+```
+
+**`robots.txt` and `sitemap.xml` (required for any product with public pages):**
+
+```typescript
+// app/robots.ts
+export default function robots(): MetadataRoute.Robots {
+  return {
+    rules: { userAgent: '*', allow: '/', disallow: ['/dashboard/', '/api/'] },
+    sitemap: `${process.env.NEXT_PUBLIC_SITE_URL}/sitemap.xml`,
+  }
+}
+
+// app/sitemap.ts
+export default function sitemap(): MetadataRoute.Sitemap {
+  return [
+    { url: `${process.env.NEXT_PUBLIC_SITE_URL}`, lastModified: new Date(), priority: 1 },
+    { url: `${process.env.NEXT_PUBLIC_SITE_URL}/pricing`, lastModified: new Date(), priority: 0.8 },
+    // Add dynamic routes (blog posts, public profiles, etc.) by fetching from the API
+  ]
+}
+```
+
+**Canonical URLs (for paginated or filterable views):**
+```typescript
+// Prevent duplicate content from query params (?page=2, ?filter=active)
+export const metadata: Metadata = {
+  alternates: { canonical: '/blog' },  // always points to the base URL
+}
+```
+
+**Structured data / JSON-LD (for content-heavy products — blog, marketplace, directory):**
+```tsx
+// Add inside the page component, not in metadata
+export default function BlogPost({ post }) {
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: post.title,
+    datePublished: post.publishedAt,
+    author: { '@type': 'Person', name: post.author.name },
+  }
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      {/* page content */}
+    </>
+  )
+}
+```
+
+**SEO scope by product type:**
+- **Pure SaaS dashboard** (all content behind login): `<title>` per page + `robots.txt` disallowing `/dashboard/`. Public marketing pages (landing, pricing) need full metadata.
+- **Content product** (blog, docs, public profiles): full metadata + sitemap + structured data on every public route.
+- **Marketplace / directory**: structured data critical — Google uses it for rich results.
+
 ### Accessibility (WCAG 2.2 AA — per design-spec)
 - Semantic HTML: `<nav>`, `<main>`, `<aside>`, `<article>`, `<section>` — never `<div>` where a semantic element exists
 - All interactive elements keyboard-accessible
@@ -296,7 +395,16 @@ This pattern surfaces the HTTP status code and backend response body in the brow
 
 ### Product Analytics (PostHog — mandatory)
 
-Every frontend must initialize PostHog and track key user actions. Without analytics, you cannot validate whether the MVP is working.
+**PostHog vs Grafana + Prometheus — different layers, both required:**
+
+| Tool | Layer | Answers |
+|---|---|---|
+| Grafana + Prometheus | Infrastructure | Is the server up? What's API p99 latency? Are there 500s? How much memory is the container using? |
+| PostHog | Product | Which features do users actually use? Where do they drop off in the funnel? Did the onboarding change improve activation? |
+
+Grafana tells you the system is healthy. PostHog tells you whether the product is delivering value. A server with 0 errors and 0 engaged users is still a failed product. They do not overlap — wire up both.
+
+Every frontend must initialize PostHog and track key user actions. Without it, you cannot validate whether the MVP is working.
 
 **Setup in `app/layout.tsx`:**
 ```tsx
