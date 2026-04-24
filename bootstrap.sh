@@ -73,8 +73,7 @@ workspace/
 
 # Environment files (secrets)
 .env
-.env.local
-*.env.local
+.env.*.local
 
 # Claude Code local settings (machine-specific)
 .claude/settings.local.json

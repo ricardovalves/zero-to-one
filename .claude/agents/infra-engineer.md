@@ -114,10 +114,10 @@ services:
 ### Secrets Management
 - Never in code, never in Docker images
 - GitHub Secrets for CI/CD
-- `.env.local` for local development (git-ignored, copied from `.env.local.example`)
+- `.env` for local development (git-ignored, copied from `.env.example`)
 - Fly.io secrets (`fly secrets set KEY=value`) for staging/production
 - For self-hosted VPS: use Docker secrets or a `.env` file owned by root (chmod 600)
-- Document every required variable in `.env.local.example`
+- Document every required variable in `.env.example`
 
 ### Observability Stack (open-source first)
 - **Logs:** Structured JSON to stdout — collected by Docker logging driver; optionally drain to Grafana Loki (open-source)

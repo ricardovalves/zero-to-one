@@ -50,7 +50,7 @@ stripe-cli:
 
 ## Required Environment Variables
 
-Document all of these in `.env.local.example`:
+Document all of these in `.env.example`:
 ```
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_PUBLISHABLE_KEY=pk_test_...

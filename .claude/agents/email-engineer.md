@@ -59,7 +59,7 @@ All outbound email is intercepted by Mailpit. Developers visit `http://localhost
 
 ## Environment Variables
 
-Document in `.env.local.example`:
+Document in `.env.example`:
 ```
 # Local (Mailpit — default)
 EMAIL_PROVIDER=smtp

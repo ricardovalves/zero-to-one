@@ -446,7 +446,7 @@ posthog.capture('checkout_completed', { plan })  // from success URL query param
 
 Track every action a user takes that answers: "Is this product delivering value?" The specific events depend on the product — derive them from the PRD's North Star Metric and key user flows.
 
-Add to `.env.local.example`:
+Add to `.env.example`:
 ```
 NEXT_PUBLIC_POSTHOG_KEY=phc_...          # from posthog.com (free) or self-hosted
 NEXT_PUBLIC_POSTHOG_HOST=https://app.posthog.com  # or your self-hosted URL
@@ -483,7 +483,7 @@ Write all frontend code to `workspace/{project}/src/frontend/`. Include:
 - Complete Next.js application matching the design spec
 - All shadcn/ui components configured
 - `package.json`, `tsconfig.json`, `next.config.ts`, `tailwind.config.ts`
-- `.env.local.example` with required environment variables
+- `.env.example` with required environment variables
 - Dockerfile for containerization
 - `public/` directory — always create this, even if empty (add a `.gitkeep`). Next.js Dockerfiles always `COPY public/` and will fail to build if the directory is absent.
 
