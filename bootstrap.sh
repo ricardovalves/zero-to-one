@@ -10,8 +10,10 @@
 #   2. Copies .claude/ (agents + commands) into the project
 #   3. Copies CLAUDE.md (framework rules) into the project
 #   4. Copies tools/ (Linear client, utilities) into the project
-#   5. Creates a starter .gitignore
-#   6. Runs git init if the target isn't already a git repo
+#   5. Copies templates/ (document templates used by agents) into the project
+#   6. Copies references/ (checklists and patterns used by agents) into the project
+#   7. Creates a starter .gitignore
+#   8. Runs git init if the target isn't already a git repo
 #
 # After running this, open Claude Code in the target directory and run:
 #   /startup <your-project-name>
@@ -49,6 +51,16 @@ cp "$FRAMEWORK_DIR/CLAUDE.md" "$TARGET/"
 if [[ -d "$FRAMEWORK_DIR/tools" ]]; then
   echo "  → Copying tools/ (Linear client, utilities)..."
   cp -r "$FRAMEWORK_DIR/tools" "$TARGET/"
+fi
+
+if [[ -d "$FRAMEWORK_DIR/templates" ]]; then
+  echo "  → Copying templates/ (document templates for agents)..."
+  cp -r "$FRAMEWORK_DIR/templates" "$TARGET/"
+fi
+
+if [[ -d "$FRAMEWORK_DIR/references" ]]; then
+  echo "  → Copying references/ (checklists and patterns for agents)..."
+  cp -r "$FRAMEWORK_DIR/references" "$TARGET/"
 fi
 
 # ── Starter .gitignore ───────────────────────────────────────────────────────
