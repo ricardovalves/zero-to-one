@@ -2,6 +2,8 @@ Run the full Zero-to-One pipeline from idea to working prototype.
 
 Orchestrates all agents with maximum parallelism. Agents communicate only through the filesystem — never directly. Produces a full execution report at the end.
 
+**Not sure if the idea is worth building?** Run `/prototype` first — it produces a working demo in hours without any strategic analysis. Show it to real users. If they want it, come back here.
+
 Usage: /startup <idea description>
 
 Arguments: $ARGUMENTS
@@ -127,6 +129,8 @@ Key assumptions made so far:
 **If NO-GO:** Stop here. Do NOT offer to continue. Present the risks and let the user decide.
 
 **If CONDITIONAL GO or GO:** Ask: *"Do you want to proceed to product definition and design? (yes / no / adjust idea)"*
+
+> **Tip:** Before committing to the full pipeline, consider running `/prototype {project}` first — it builds a working demo in hours (no specs, no reviews, no billing). Show it to 5 real users. A validated prototype makes the /startup investment much safer.
 
 Wait for explicit user confirmation before moving to Step 3.
 
