@@ -404,10 +404,12 @@ docker compose up
 
 This prototype has no: tests, security review, error handling, email, billing, CI/CD, or production deployment. It is a validation artifact — not a product.
 
+**The code is throwaway.** `/startup` does not extend this prototype — it designs the architecture from scratch using a full PRD, cto-architect, and ux-designer. Expect the schema and codebase to be rebuilt. That is correct behavior.
+
 ## Next Steps
 
 - **Validate first.** Show this to 5 real users. Watch them use it. If they ask "how do I sign up?" — you have signal.
-- **If validated:** `/startup {project}` — full pipeline: business analysis, PRD, design system, architecture, Linear roadmap, full build with reviews.
+- **If validated:** `/startup {project}` — full pipeline: business analysis, PRD, design system, architecture, Linear roadmap, full build with reviews. The prototype code gets replaced — that's expected.
 - **If not:** You spent hours, not weeks. Adjust the idea or move on.
 ```
 
@@ -424,4 +426,5 @@ Login:    demo@{project}.local / password123
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Show this to 5 real users.
 If they want it → /startup {project} to build it properly.
+(This code is throwaway — /startup rebuilds from scratch. That's expected.)
 ```
