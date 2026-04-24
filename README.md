@@ -144,22 +144,29 @@ Output lives in `workspace/fairsplit/`. Open `workspace/fairsplit/prototype/inde
 
 ## How to Use
 
-**Start here if you're trying it for the first time:**
+There are two entry points depending on where you are:
+
+**Want to validate before committing?**
 ```
-/ideate "your idea"          # Business analysis + PRD — the most reliable starting point
+/prototype "your idea"       # idea → working demo in hours, no specs, no reviews
+                             # show it to 5 real users — if they want it, run /startup
 ```
 
-This runs the strategic phase only: market validation → product definition. It's faster, more focused, and gives you a clear GO / NO-GO before committing to the full pipeline. Once you're happy with the output, continue with `/design` and `/architect`, or jump straight to `/startup`.
+**Ready to build properly?**
+```
+/startup "your idea here"    # idea → business analysis → PRD → design + arch → roadmap
+/build <project>             # foundation → features → billing → email
+```
 
-### Full Pipeline (idea → working MVP)
+**Want the strategic analysis first, without building?**
 ```
-/startup "your idea here"   # idea → business analysis → PRD → design + arch → roadmap
-/build <project>            # foundation → features → billing → email
+/ideate "your idea"          # Business analysis + PRD — clear GO / NO-GO before committing
 ```
+
+Once you have a validated idea (from `/prototype`) or a strategic analysis (from `/ideate`), continue with:
 
 ### Individual Phases
 ```
-/ideate "your idea"          # Business analysis + PRD only (recommended first step)
 /design <project>            # UX design spec + HTML prototype
 /architect <project>         # Technical architecture + API spec
 /build <project> [feature]   # Engineering pipeline
@@ -264,6 +271,7 @@ No other setup required. The full stack runs locally via Docker.
 
 | What | Notes |
 |---|---|
+| `/prototype` — rapid validation mode | idea → working demo (login + core feature + seeded data) in hours, no specs or reviews. Show to 5 users. If validated → `/startup` |
 | Business analysis → PRD → Design → Architecture pipeline | The strategic phase — generally the most reliable part |
 | Parallel agent execution (UX + CTO, backend + frontend + infra) | Agents run concurrently where possible |
 | Viability Gate + Plan & Milestones Gate | Two human checkpoints before work progresses |
@@ -276,6 +284,7 @@ No other setup required. The full stack runs locally via Docker.
 | Assumption tracking | Every agent logs its assumptions to a shared file; surfaced at each human gate |
 | `/refine` command | Improve a specific document based on feedback without re-running the whole pipeline |
 | HTTP security headers + global rate limiting | Baked into the backend skeleton |
+| OWASP Top 10 (2025) + API Security Top 10 + LLM Top 10 | Security engineer runs all three checklists; LLM checklist applies only when AI features are present |
 
 ### Things I'd like to explore next
 
