@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zero-to-One — From idea to deployable app</title>
+  <meta name="description" content="A multi-agent framework that takes any idea from concept to deployable app. Market validation, product, UX, architecture, and engineering — in one pipeline." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: '#6366f1',
+            'brand-light': '#818cf8',
+            'brand-dark': '#4f46e5',
+          },
+          fontFamily: {
+            mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+          },
+          animation: {
+            'fade-up': 'fadeUp 0.6s ease forwards',
+            'pulse-slow': 'pulse 3s ease-in-out infinite',
+          },
+          keyframes: {
+            fadeUp: {
+              '0%': { opacity: '0', transform: 'translateY(20px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
+            },
+          },
+        },
+      },
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .gradient-text {
+      background: linear-gradient(135deg, #6366f1 0%, #a78bfa 50%, #38bdf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .gradient-border {
+      background: linear-gradient(135deg, #6366f1, #a78bfa, #38bdf8);
+      padding: 1px;
+      border-radius: 12px;
+    }
+    .gradient-border-inner {
+      background: #0f1117;
+      border-radius: 11px;
+    }
+    .glow {
+      box-shadow: 0 0 40px rgba(99, 102, 241, 0.15);
+    }
+    .glow-sm {
+      box-shadow: 0 0 20px rgba(99, 102, 241, 0.1);
+    }
+    .grid-bg {
+      background-image: linear-gradient(rgba(99,102,241,0.05) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(99,102,241,0.05) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+    .agent-card:hover { transform: translateY(-2px); }
+    .agent-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .copy-btn:active { transform: scale(0.95); }
+    code { font-family: 'JetBrains Mono', monospace; }
+
+    /* Pipeline animations */
+    .pipeline-row {
+      opacity: 0;
+      transform: translateY(16px);
+      transition: opacity 0.45s ease, transform 0.45s ease;
+    }
+    .pipeline-row.visible {
+      opacity: 1;
+      transform: none;
+    }
+    .pipeline-child {
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.35s ease calc(var(--delay, 0s) + 0.2s),
+                  transform 0.35s ease calc(var(--delay, 0s) + 0.2s);
+    }
+    .pipeline-row.visible .pipeline-child {
+      opacity: 1;
+      transform: none;
+    }
+    @keyframes gatePulse {
+      0%, 100% { border-color: rgba(245, 158, 11, 0.25); }
+      50% { border-color: rgba(245, 158, 11, 0.5); box-shadow: 0 0 24px rgba(245, 158, 11, 0.08); }
+    }
+    .pipeline-gate.visible .gate-card {
+      animation: gatePulse 1.4s ease 0.3s;
+    }
+  </style>
+</head>
+<body class="bg-[#0a0b0f] text-slate-200 overflow-x-hidden">
+
+  <!-- Nav -->
+  <nav class="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-[#0a0b0f]/80 backdrop-blur-xl">
+    <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+      <span class="font-mono font-bold text-white tracking-tight">zero-to-one</span>
+      <div class="flex items-center gap-6">
+        <a href="#how-it-works" class="text-sm text-slate-400 hover:text-white transition-colors">How it works</a>
+        <a href="#commands" class="text-sm text-slate-400 hover:text-white transition-colors">Commands</a>
+        <a href="https://github.com/ricardovalves/zero-to-one" target="_blank"
+           class="flex items-center gap-2 text-sm bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-1.5 rounded-lg transition-all">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="relative min-h-screen flex items-center justify-center grid-bg pt-14">
+    <!-- Glow orbs -->
+    <div class="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+    <div class="relative max-w-4xl mx-auto px-6 text-center">
+      <div class="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-mono px-3 py-1.5 rounded-full mb-8">
+        <span class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse"></span>
+        Built on Claude Code · 13 agents · One pipeline
+      </div>
+
+      <h1 class="text-5xl sm:text-7xl font-extrabold text-white leading-[1.05] tracking-tight mb-6">
+        From idea to<br/>
+        <span class="gradient-text">deployable app.</span>
+      </h1>
+
+      <p class="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed mb-10">
+        A multi-agent framework that validates your idea, defines the product, designs the UX, architects the system, and hands it to an engineering team — all in one command.
+      </p>
+
+      <!-- Install command -->
+      <div class="gradient-border inline-block glow mb-4">
+        <div class="gradient-border-inner px-6 py-4 flex items-center gap-4">
+          <span class="text-slate-500 font-mono text-sm select-none">$</span>
+          <code class="text-white text-sm sm:text-base tracking-wide">npx idea-to-app ~/projects/my-app</code>
+          <button onclick="copyInstall()" class="copy-btn ml-2 text-slate-500 hover:text-indigo-400 transition-colors" title="Copy">
+            <svg id="copy-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+            <svg id="check-icon" class="w-4 h-4 text-green-400 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <p class="text-slate-600 text-sm mb-12">Open the directory in Claude Code · Run <code class="text-slate-400">/prototype</code> or <code class="text-slate-400">/startup</code></p>
+
+      <div class="flex flex-wrap items-center justify-center gap-4">
+        <a href="https://github.com/ricardovalves/zero-to-one" target="_blank"
+           class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-6 py-3 rounded-xl transition-all hover:shadow-lg hover:shadow-indigo-500/25">
+          View on GitHub
+        </a>
+        <a href="#how-it-works"
+           class="bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 font-medium px-6 py-3 rounded-xl transition-all">
+          See how it works
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Two paths -->
+  <section class="py-24 px-6">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl sm:text-4xl font-bold text-white mb-4">Two paths. One framework.</h2>
+        <p class="text-slate-400 max-w-xl mx-auto">Start fast to validate, or go deep to build. The same agents power both.</p>
+      </div>
+
+      <div class="grid sm:grid-cols-2 gap-6">
+        <!-- Prototype -->
+        <div class="gradient-border glow-sm">
+          <div class="gradient-border-inner p-8 h-full">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-8 h-8 bg-indigo-500/20 rounded-lg flex items-center justify-center">
+                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              </div>
+              <code class="text-indigo-400 font-mono font-bold">/prototype</code>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-3">Validate in hours</h3>
+            <p class="text-slate-400 text-sm leading-relaxed mb-6">Working demo with login, real data, and your core feature. No specs, no reviews. Show it to 5 real users — if they want it, build it properly.</p>
+            <div class="space-y-2">
+              <div class="flex items-center gap-2 text-sm text-slate-400">
+                <span class="text-green-400">✓</span> Working login + seeded data
+              </div>
+              <div class="flex items-center gap-2 text-sm text-slate-400">
+                <span class="text-green-400">✓</span> Core feature end-to-end
+              </div>
+              <div class="flex items-center gap-2 text-sm text-slate-400">
+                <span class="text-green-400">✓</span> Runs with <code class="text-slate-300">docker compose up</code>
+              </div>
+              <div class="flex items-center gap-2 text-sm text-slate-500">
+                <span class="text-slate-600">—</span> No specs, no security review
+              </div>
+              <div class="flex items-center gap-2 text-sm text-slate-500">
+                <span class="text-slate-600">—</span> Throwaway code, not a foundation
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Startup -->
+        <div class="bg-white/[0.03] border border-white/10 rounded-xl p-8">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center">
+              <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+            </div>
+            <code class="text-purple-400 font-mono font-bold">/startup</code>
+          </div>
+          <h3 class="text-xl font-bold text-white mb-3">Build it properly</h3>
+          <p class="text-slate-400 text-sm leading-relaxed mb-6">The full pipeline. Market validation, PRD, design system, architecture, sprint planning — then an engineering team that builds incrementally with quality gates at every step.</p>
+          <div class="space-y-2">
+            <div class="flex items-center gap-2 text-sm text-slate-400">
+              <span class="text-green-400">✓</span> Business viability analysis
+            </div>
+            <div class="flex items-center gap-2 text-sm text-slate-400">
+              <span class="text-green-400">✓</span> Full PRD + design system + API spec
+            </div>
+            <div class="flex items-center gap-2 text-sm text-slate-400">
+              <span class="text-green-400">✓</span> Security + architecture reviews
+            </div>
+            <div class="flex items-center gap-2 text-sm text-slate-400">
+              <span class="text-green-400">✓</span> Billing, email, CI/CD included
+            </div>
+            <div class="flex items-center gap-2 text-sm text-slate-400">
+              <span class="text-green-400">✓</span> Production-ready, deployable
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pipeline -->
+  <section id="how-it-works" class="py-24 px-6 bg-white/[0.01] border-y border-white/5">
+    <div class="max-w-3xl mx-auto">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl sm:text-4xl font-bold text-white mb-4">The full pipeline</h2>
+        <p class="text-slate-400 max-w-xl mx-auto">13 agents. Every phase that can run in parallel does. Two human gates before anything goes sideways.</p>
+      </div>
+
+      <div class="relative">
+        <!-- Vertical rail -->
+        <div class="absolute left-5 top-4 bottom-4 w-px bg-gradient-to-b from-indigo-500/40 via-purple-500/20 to-rose-500/20 pointer-events-none"></div>
+
+        <div class="space-y-3">
+
+          <!-- Step 1 -->
+          <div class="pipeline-row flex items-start gap-4">
+            <div class="shrink-0 z-10 w-10 h-10 rounded-full bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center">
+              <span class="text-indigo-400 font-mono text-xs font-bold">1</span>
+            </div>
+            <div class="flex-1 bg-white/[0.03] border border-white/10 rounded-xl p-5 hover:border-white/20 transition-colors">
+              <div class="text-xs text-indigo-400 font-mono mb-1">business-expert</div>
+              <div class="text-white font-semibold mb-1">Market Validation</div>
+              <div class="text-slate-500 text-sm">TAM/SAM/SOM · competitive landscape · unit economics · go/no-go verdict</div>
+            </div>
+          </div>
+
+          <!-- Gate 1 -->
+          <div class="pipeline-row pipeline-gate pl-14">
+            <div class="gate-card bg-amber-500/[0.06] border border-amber-500/25 rounded-xl px-5 py-3 flex items-center gap-3">
+              <svg class="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+              <div>
+                <span class="text-amber-400 font-mono text-xs font-bold tracking-wide">GATE 1</span>
+                <span class="text-amber-400/50 text-xs ml-2">Viability check — you approve before continuing</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="pipeline-row flex items-start gap-4">
+            <div class="shrink-0 z-10 w-10 h-10 rounded-full bg-purple-500/20 border border-purple-500/40 flex items-center justify-center">
+              <span class="text-purple-400 font-mono text-xs font-bold">2</span>
+            </div>
+            <div class="flex-1 bg-white/[0.03] border border-white/10 rounded-xl p-5 hover:border-white/20 transition-colors">
+              <div class="text-xs text-purple-400 font-mono mb-1">product-manager</div>
+              <div class="text-white font-semibold mb-1">Product Definition</div>
+              <div class="text-slate-500 text-sm">Personas · user stories · RICE scoring · OKRs · full PRD</div>
+            </div>
+          </div>
+
+          <!-- Step 3: Parallel -->
+          <div class="pipeline-row flex items-start gap-4">
+            <div class="shrink-0 z-10 w-10 h-10 rounded-full bg-sky-500/20 border border-sky-500/40 flex items-center justify-center">
+              <span class="text-sky-400 font-mono text-xs font-bold">3</span>
+            </div>
+            <div class="flex-1">
+              <div class="text-xs text-sky-400/50 font-mono mb-2">runs in parallel</div>
+              <div class="grid sm:grid-cols-2 gap-3">
+                <div class="bg-white/[0.03] border border-white/10 rounded-xl p-5 hover:border-white/20 transition-colors pipeline-child" style="--delay: 0s">
+                  <div class="text-xs text-sky-400 font-mono mb-1">ux-designer</div>
+                  <div class="text-white font-semibold mb-1">Design</div>
+                  <div class="text-slate-500 text-sm">Design system · user flows · HTML prototype</div>
+                </div>
+                <div class="bg-white/[0.03] border border-white/10 rounded-xl p-5 hover:border-white/20 transition-colors pipeline-child" style="--delay: 0.1s">
+                  <div class="text-xs text-sky-400 font-mono mb-1">cto-architect</div>
+                  <div class="text-white font-semibold mb-1">Architecture</div>
+                  <div class="text-slate-500 text-sm">C4 model · OpenAPI spec · DB schema · NFRs</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 4 -->
+          <div class="pipeline-row flex items-start gap-4">
+            <div class="shrink-0 z-10 w-10 h-10 rounded-full bg-teal-500/20 border border-teal-500/40 flex items-center justify-center">
+              <span class="text-teal-400 font-mono text-xs font-bold">4</span>
+            </div>
+            <div class="flex-1 bg-white/[0.03] border border-white/10 rounded-xl p-5 hover:border-white/20 transition-colors">
+              <div class="text-xs text-teal-400 font-mono mb-1">project-manager</div>
+              <div class="text-white font-semibold mb-1">Sprint Planning</div>
+              <div class="text-slate-500 text-sm">Roadmap · epics · Linear issues · sprint breakdown</div>
+            </div>
+          </div>
+
+          <!-- Gate 2 -->
+          <div class="pipeline-row pipeline-gate pl-14">
+            <div class="gate-card bg-amber-500/[0.06] border border-amber-500/25 rounded-xl px-5 py-3 flex items-center gap-3">
+              <svg class="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+              <div>
+                <span class="text-amber-400 font-mono text-xs font-bold tracking-wide">GATE 2</span>
+                <span class="text-amber-400/50 text-xs ml-2">Execution plan — you approve before engineering starts</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 5: Engineering -->
+          <div class="pipeline-row flex items-start gap-4">
+            <div class="shrink-0 z-10 w-10 h-10 rounded-full bg-green-500/20 border border-green-500/40 flex items-center justify-center">
+              <span class="text-green-400 font-mono text-xs font-bold">5</span>
+            </div>
+            <div class="flex-1">
+              <div class="text-xs text-green-400/50 font-mono mb-2">runs in parallel</div>
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div class="bg-white/[0.03] border border-white/10 rounded-xl p-4 hover:border-white/20 transition-colors pipeline-child" style="--delay: 0s">
+                  <div class="text-xs text-green-400 font-mono mb-1">backend-engineer</div>
+                  <div class="text-white text-sm font-semibold">FastAPI · Auth · Tests</div>
+                </div>
+                <div class="bg-white/[0.03] border border-white/10 rounded-xl p-4 hover:border-white/20 transition-colors pipeline-child" style="--delay: 0.07s">
+                  <div class="text-xs text-green-400 font-mono mb-1">frontend-engineer</div>
+                  <div class="text-white text-sm font-semibold">Next.js · React · TypeScript</div>
+                </div>
+                <div class="bg-white/[0.03] border border-white/10 rounded-xl p-4 hover:border-white/20 transition-colors pipeline-child" style="--delay: 0.14s">
+                  <div class="text-xs text-green-400 font-mono mb-1">db-engineer</div>
+                  <div class="text-white text-sm font-semibold">PostgreSQL · Alembic</div>
+                </div>
+                <div class="bg-white/[0.03] border border-white/10 rounded-xl p-4 hover:border-white/20 transition-colors pipeline-child" style="--delay: 0.21s">
+                  <div class="text-xs text-green-400 font-mono mb-1">infra-engineer</div>
+                  <div class="text-white text-sm font-semibold">Docker · CI/CD · Fly.io</div>
+                </div>
+                <div class="bg-white/[0.03] border border-white/10 rounded-xl p-4 hover:border-white/20 transition-colors pipeline-child" style="--delay: 0.28s">
+                  <div class="text-xs text-green-400 font-mono mb-1">stripe-engineer</div>
+                  <div class="text-white text-sm font-semibold">Billing · Webhooks</div>
+                </div>
+                <div class="bg-white/[0.03] border border-white/10 rounded-xl p-4 hover:border-white/20 transition-colors pipeline-child" style="--delay: 0.35s">
+                  <div class="text-xs text-green-400 font-mono mb-1">email-engineer</div>
+                  <div class="text-white text-sm font-semibold">Transactional · Mailpit</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quality checks -->
+          <div class="pipeline-row flex items-start gap-4">
+            <div class="shrink-0 z-10 w-10 h-10 rounded-full bg-rose-500/20 border border-rose-500/40 flex items-center justify-center">
+              <svg class="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            </div>
+            <div class="flex-1">
+              <div class="text-xs text-rose-400/50 font-mono mb-2">every PR · runs in parallel</div>
+              <div class="grid sm:grid-cols-3 gap-3">
+                <div class="bg-rose-500/[0.04] border border-rose-500/20 rounded-xl p-4 hover:border-rose-500/30 transition-colors pipeline-child" style="--delay: 0s">
+                  <div class="text-xs text-rose-400 font-mono mb-1">security-engineer</div>
+                  <div class="text-white text-sm font-semibold">OWASP · STRIDE · Dep scan</div>
+                </div>
+                <div class="bg-rose-500/[0.04] border border-rose-500/20 rounded-xl p-4 hover:border-rose-500/30 transition-colors pipeline-child" style="--delay: 0.07s">
+                  <div class="text-xs text-rose-400 font-mono mb-1">architecture-reviewer</div>
+                  <div class="text-white text-sm font-semibold">C4 · NFRs · Best practices</div>
+                </div>
+                <div class="bg-rose-500/[0.04] border border-rose-500/20 rounded-xl p-4 hover:border-rose-500/30 transition-colors pipeline-child" style="--delay: 0.14s">
+                  <div class="text-xs text-rose-400 font-mono mb-1">qa-engineer</div>
+                  <div class="text-white text-sm font-semibold">Smoke tests · Playwright</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Commands -->
+  <section id="commands" class="py-24 px-6">
+    <div class="max-w-4xl mx-auto">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl sm:text-4xl font-bold text-white mb-4">Every command you need</h2>
+        <p class="text-slate-400">Run these inside Claude Code after bootstrapping the framework.</p>
+      </div>
+
+      <div class="space-y-3">
+        <div class="bg-white/[0.03] border border-white/10 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-3">
+          <code class="text-indigo-400 font-mono text-sm w-48 shrink-0">/prototype "idea"</code>
+          <span class="text-slate-400 text-sm">Working demo in hours — login, core feature, seeded data. Validate with real users before committing.</span>
+        </div>
+        <div class="bg-white/[0.03] border border-white/10 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-3">
+          <code class="text-purple-400 font-mono text-sm w-48 shrink-0">/startup "idea"</code>
+          <span class="text-slate-400 text-sm">Full pipeline — market analysis → PRD → design + architecture → engineering team.</span>
+        </div>
+        <div class="bg-white/[0.03] border border-white/10 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-3">
+          <code class="text-sky-400 font-mono text-sm w-48 shrink-0">/build &lt;project&gt;</code>
+          <span class="text-slate-400 text-sm">Kick off the engineering pipeline for an existing project. Vertical slices with quality gates.</span>
+        </div>
+        <div class="bg-white/[0.03] border border-white/10 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-3">
+          <code class="text-teal-400 font-mono text-sm w-48 shrink-0">/ideate "idea"</code>
+          <span class="text-slate-400 text-sm">Strategic phase only — business analysis + PRD. Clear GO/NO-GO before investing further.</span>
+        </div>
+        <div class="bg-white/[0.03] border border-white/10 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-3">
+          <code class="text-slate-400 font-mono text-sm w-48 shrink-0">/iterate &lt;project&gt;</code>
+          <span class="text-slate-400 text-sm">Improve a working product — new features or refinements through the full pipeline.</span>
+        </div>
+        <div class="bg-white/[0.03] border border-white/10 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-3">
+          <code class="text-rose-400 font-mono text-sm w-48 shrink-0">/review-pr &lt;url&gt;</code>
+          <span class="text-slate-400 text-sm">Full 2-agent PR review — security engineer + architecture reviewer run in parallel.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tech stack -->
+  <section class="py-24 px-6 bg-white/[0.01] border-y border-white/5">
+    <div class="max-w-4xl mx-auto">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl sm:text-4xl font-bold text-white mb-4">What gets generated</h2>
+        <p class="text-slate-400">Every project starts with <code class="text-slate-300">docker compose up</code> — zero cloud accounts, zero credit cards required.</p>
+      </div>
+
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="bg-white/[0.03] border border-white/10 rounded-xl p-5">
+          <div class="text-sky-400 font-mono text-xs mb-2">Frontend</div>
+          <div class="text-white font-semibold mb-1">Next.js 15</div>
+          <div class="text-slate-500 text-sm">App Router · TypeScript strict · Tailwind CSS · PostHog analytics</div>
+        </div>
+        <div class="bg-white/[0.03] border border-white/10 rounded-xl p-5">
+          <div class="text-green-400 font-mono text-xs mb-2">Backend</div>
+          <div class="text-white font-semibold mb-1">FastAPI</div>
+          <div class="text-slate-500 text-sm">Python 3.12 · JWT auth · structured logging · rate limiting</div>
+        </div>
+        <div class="bg-white/[0.03] border border-white/10 rounded-xl p-5">
+          <div class="text-amber-400 font-mono text-xs mb-2">Database</div>
+          <div class="text-white font-semibold mb-1">PostgreSQL 16</div>
+          <div class="text-slate-500 text-sm">SQLAlchemy 2.0 async · Alembic migrations · Docker volume</div>
+        </div>
+        <div class="bg-white/[0.03] border border-white/10 rounded-xl p-5">
+          <div class="text-purple-400 font-mono text-xs mb-2">Billing</div>
+          <div class="text-white font-semibold mb-1">Stripe</div>
+          <div class="text-slate-500 text-sm">Checkout · subscriptions · webhooks · plan gating middleware</div>
+        </div>
+        <div class="bg-white/[0.03] border border-white/10 rounded-xl p-5">
+          <div class="text-pink-400 font-mono text-xs mb-2">Email</div>
+          <div class="text-white font-semibold mb-1">Mailpit + Resend</div>
+          <div class="text-slate-500 text-sm">SMTP catcher locally · Resend in production · all templates included</div>
+        </div>
+        <div class="bg-white/[0.03] border border-white/10 rounded-xl p-5">
+          <div class="text-slate-400 font-mono text-xs mb-2">Infra</div>
+          <div class="text-white font-semibold mb-1">Docker + GitHub Actions</div>
+          <div class="text-slate-500 text-sm">Multi-stage builds · CI/CD · Fly.io or self-hosted deployment</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="py-32 px-6 relative">
+    <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+      <div class="w-[600px] h-[600px] bg-indigo-600/5 rounded-full blur-3xl"></div>
+    </div>
+    <div class="relative max-w-2xl mx-auto text-center">
+      <h2 class="text-3xl sm:text-5xl font-extrabold text-white mb-6 tracking-tight">
+        Start with an idea.<br/>
+        <span class="gradient-text">Ship a product.</span>
+      </h2>
+      <p class="text-slate-400 mb-10 text-lg">Open source. MIT license. Runs entirely on your machine.</p>
+
+      <div class="gradient-border inline-block glow mb-8">
+        <div class="gradient-border-inner px-6 py-4 flex items-center gap-4">
+          <span class="text-slate-500 font-mono text-sm select-none">$</span>
+          <code class="text-white text-sm sm:text-base tracking-wide">npx idea-to-app ~/projects/my-app</code>
+          <button onclick="copyInstall()" class="copy-btn ml-2 text-slate-500 hover:text-indigo-400 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap justify-center gap-4">
+        <a href="https://github.com/ricardovalves/zero-to-one" target="_blank"
+           class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-8 py-3 rounded-xl transition-all hover:shadow-lg hover:shadow-indigo-500/25">
+          View on GitHub
+        </a>
+        <a href="https://www.npmjs.com/package/idea-to-app" target="_blank"
+           class="bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 font-medium px-8 py-3 rounded-xl transition-all">
+          npm package
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-white/5 py-8 px-6">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <span class="font-mono text-slate-500 text-sm">zero-to-one · MIT License</span>
+      <div class="flex items-center gap-6">
+        <a href="https://github.com/ricardovalves/zero-to-one" target="_blank" class="text-slate-500 hover:text-white text-sm transition-colors">GitHub</a>
+        <a href="https://www.npmjs.com/package/idea-to-app" target="_blank" class="text-slate-500 hover:text-white text-sm transition-colors">npm</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    function copyInstall() {
+      navigator.clipboard.writeText('npx idea-to-app ~/projects/my-app');
+      const icon = document.getElementById('copy-icon');
+      const check = document.getElementById('check-icon');
+      if (icon && check) {
+        icon.classList.add('hidden');
+        check.classList.remove('hidden');
+        setTimeout(() => {
+          icon.classList.remove('hidden');
+          check.classList.add('hidden');
+        }, 2000);
+      }
+    }
+
+    // Pipeline scroll animations
+    const pipelineRows = document.querySelectorAll('.pipeline-row');
+    if (pipelineRows.length && 'IntersectionObserver' in window) {
+      const pipelineObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            pipelineObserver.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.15 });
+      pipelineRows.forEach(row => pipelineObserver.observe(row));
+    } else {
+      pipelineRows.forEach(row => row.classList.add('visible'));
+    }
+
+    // Smooth scroll for anchor links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        document.querySelector(this.getAttribute('href'))?.scrollIntoView({ behavior: 'smooth' });
+      });
+    });
+  </script>
+</body>
+</html>
