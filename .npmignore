@@ -1,0 +1,12 @@
+# Machine-specific Claude Code settings
+.claude/settings.local.json
+
+# Development artifacts
+workspace/
+bootstrap.sh
+.DS_Store
+.vscode/
+.github/
+
+# Git
+.git/

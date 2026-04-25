@@ -1,0 +1,39 @@
+{
+  "name": "idea-to-app",
+  "version": "1.0.0",
+  "description": "A multi-agent framework that takes any idea from concept to deployable app — market validation, product, UX, architecture, and engineering, in one pipeline.",
+  "bin": {
+    "idea-to-app": "bin/cli.js"
+  },
+  "files": [
+    "bin/",
+    "CLAUDE.md",
+    "tools/",
+    "templates/",
+    "references/",
+    ".claude/agents/",
+    ".claude/commands/"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "claude-code",
+    "ai-agents",
+    "multi-agent",
+    "scaffold",
+    "starter",
+    "llm",
+    "anthropic"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ricardovalves/zero-to-one.git"
+  },
+  "homepage": "https://github.com/ricardovalves/zero-to-one#readme",
+  "bugs": {
+    "url": "https://github.com/ricardovalves/zero-to-one/issues"
+  }
+}

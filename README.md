@@ -244,13 +244,25 @@ Two mandatory approval gates prevent building the wrong thing:
 
 ## Setup
 
-1. Clone this repo and open in Claude Code
-2. Optionally set environment variables for integrations:
-   ```bash
-   export LINEAR_API_KEY=your_linear_key      # for Linear issue creation
-   export ANTHROPIC_API_KEY=your_key          # if not already set by Claude Code
-   ```
-3. Run `/startup "your idea"` to begin
+**Option 1 — npx (recommended)**
+```bash
+npx idea-to-app ~/projects/my-app
+```
+This copies the framework into your target directory and runs `git init`. Then open the directory in Claude Code and you're ready to go.
+
+**Option 2 — Clone**
+```bash
+git clone https://github.com/ricardovalves/zero-to-one.git
+node bin/cli.js ~/projects/my-app
+```
+
+Then optionally set environment variables for integrations:
+```bash
+export LINEAR_API_KEY=your_linear_key      # for Linear issue creation
+export ANTHROPIC_API_KEY=your_key          # if not already set by Claude Code
+```
+
+Open the project directory in Claude Code and run `/prototype "your idea"` or `/startup "your idea"` to begin.
 
 No other setup required. The full stack runs locally via Docker.
 
