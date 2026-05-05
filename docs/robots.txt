@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ricardovalves.github.io/zero-to-one/sitemap.xml
