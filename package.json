@@ -8,11 +8,11 @@
   "files": [
     "bin/",
     "CLAUDE.md",
-    "tools/",
-    "templates/",
-    "references/",
     ".claude/agents/",
-    ".claude/commands/"
+    ".claude/commands/",
+    ".claude/tools/",
+    ".claude/templates/",
+    ".claude/references/"
   ],
   "type": "module",
   "engines": {

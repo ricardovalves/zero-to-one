@@ -35,9 +35,9 @@ mkdirSync(resolve(target, ".claude"), { recursive: true });
 copy(".claude/agents", "agents");
 copy(".claude/commands", "commands");
 copy("CLAUDE.md", "framework rules");
-copy("tools", "Linear client + utilities");
-copy("templates", "document templates");
-copy("references", "checklists + patterns");
+copy(".claude/tools", "Linear client + utilities");
+copy(".claude/templates", "document templates");
+copy(".claude/references", "checklists + patterns");
 
 if (!existsSync(resolve(target, ".gitignore"))) {
   console.log("  → Creating .gitignore...");
