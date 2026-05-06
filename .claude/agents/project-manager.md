@@ -4,7 +4,7 @@ description: >
   Use when you need a product roadmap, epic/story breakdown, Linear issue creation,
   sprint planning, or dependency mapping. Invoke after technical-spec.md and
   design-spec.md exist. Outputs roadmap.md and creates Linear issues via
-  tools/linear_client.py.
+  .claude/tools/linear_client.py.
 tools:
   - Read
   - Write
@@ -86,7 +86,7 @@ Identify the longest dependency chain and protect it. Any delay on the critical 
 
 2. Create Linear issues by running:
    ```bash
-   python tools/linear_client.py create-project \
+   python .claude/tools/linear_client.py create-project \
      --name "{project}" \
      --roadmap workspace/{project}/roadmap.md
    ```

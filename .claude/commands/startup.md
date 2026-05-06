@@ -200,7 +200,7 @@ If no contradictions are found, continue silently.
 - Input: project name
 - Reads: `handoffs/product-manager.md`, `handoffs/cto-architect.md`, `handoffs/ux-designer.md`
 - Writes: `workspace/{project}/roadmap.md` + `workspace/{project}/handoffs/project-manager.md`
-- If `LINEAR_API_KEY` is set: also creates Linear issues via `python tools/linear_client.py`
+- If `LINEAR_API_KEY` is set: also creates Linear issues via `python .claude/tools/linear_client.py`
 
 Wait for completion. Read `workspace/{project}/roadmap.md` and `workspace/{project}/handoffs/project-manager.md`.
 
@@ -341,7 +341,7 @@ If the user adjusts scope, update `workspace/{project}/roadmap.md` accordingly b
 
 ### STEP 6: Execution Report
 
-Write `workspace/{project}/execution-report.md` using the template at `templates/execution-report.md` as your structure.
+Write `workspace/{project}/execution-report.md` using the template at `.claude/templates/execution-report.md` as your structure.
 Read all handoff notes to populate the report accurately.
 
 ```markdown

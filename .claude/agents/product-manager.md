@@ -119,7 +119,7 @@ Each Input Metric
 
 ## Output: Full PRD
 
-Write to `workspace/{project}/prd.md`. Use the template at `templates/prd.md` as your structure. This is a **complete, production-ready PRD** — not a skeleton. Every section must be fully filled with specific, real content. No placeholder text.
+Write to `workspace/{project}/prd.md`. Use the template at `.claude/templates/prd.md` as your structure. This is a **complete, production-ready PRD** — not a skeleton. Every section must be fully filled with specific, real content. No placeholder text.
 
 ### Required Sections
 

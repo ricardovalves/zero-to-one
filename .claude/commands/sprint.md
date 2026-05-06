@@ -20,7 +20,7 @@ Read:
 
 If LINEAR_API_KEY is set, list current issues:
 ```bash
-python tools/linear_client.py list-issues --project {project}
+python .claude/tools/linear_client.py list-issues --project {project}
 ```
 
 **Step 3: Invoke Project Manager for Sprint Planning**

@@ -165,7 +165,7 @@ Rate chasm risk: **Low / Medium / High**.
 
 ## Output
 
-Write the completed business analysis to `workspace/{project}/business-analysis.md`. Use the template at `templates/business-analysis.md`.
+Write the completed business analysis to `workspace/{project}/business-analysis.md`. Use the template at `.claude/templates/business-analysis.md`.
 
 The document must include all analytical frameworks above. Structure it in this order:
 1. Executive Summary & Verdict
