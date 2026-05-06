@@ -1,6 +1,6 @@
 {
   "name": "idea-to-app",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A multi-agent framework that takes any idea from concept to deployable app — market validation, product, UX, architecture, and engineering, in one pipeline.",
   "bin": {
     "idea-to-app": "bin/cli.js"
